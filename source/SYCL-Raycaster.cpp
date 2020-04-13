@@ -187,244 +187,6 @@ void Raycaster::initializeCL()
     qDebug("Raycaster: Leaving initializeCL");
 }
 
-
- //Override unimplemented InteropWindow function
-void Raycaster::updateScene()
-{
-    // NOTE 1: When cl_khr_gl_event is NOT supported, then clFinish() is the only portable
-    //         sync method and hence that will be called.
-    //
-    // NOTE 2.1: When cl_khr_gl_event IS supported AND the possibly conflicting OpenGL
-    //           context is current to the thread, then it is sufficient to wait for events
-    //           of clEnqueueAcquireGLObjects, as the spec guarantees that all OpenGL
-    //           operations involving the acquired memory objects have finished. It also
-    //           guarantees that any OpenGL commands issued after clEnqueueReleaseGLObjects
-    //           will not execute until the release is complete.
-    //         
-    //           See: opencl-1.2-extensions.pdf (Rev. 15. Chapter 9.8.5)
-
-    cl::Event acquire, release;
-
-    CLcommandqueues().at(dev_id).enqueueAcquireGLObjects(&interop_resources, nullptr, &acquire);
-
-    try
-    {
-		// Start raymarch lambda
-		auto m_raymarch = [](const cl::sycl::float3& camPos, const cl::sycl::float3& rayDirection, const float startT, const float endT, const float deltaS)
-		{
-			int saturationThreshold = 0;
-			// example lambda functions that could be given by the user
-			// density function(spherical harminics) inside the extent
-			auto densityFunc = [=](const float& r, const float& theta, const float& /*phi*/)
-			{
-#ifdef __SYCL_DEVICE_ONLY__
-				float sqrt3fpi = cl::sycl::sqrt(3.0f / M_PI);
-				//float val = 1.0f / 2.0f * sqrt3fpi * cl::sycl::cos(theta + phiii); // Y(l = 1, m = 0)
-				float val = 1.0f / 2.0f * sqrt3fpi * cl::sycl::cos(theta); // Y(l = 1, m = 0)
-				float result = cl::sycl::fabs(2 * cl::sycl::fabs(val) - r);
-#else
-				float sqrt3fpi = 1.0f;
-				float val = 1.0f;
-				float result = 1.0f;
-
-				(void)sqrt3fpi;
-				(void)r;
-				(void)theta;
-#endif
-				if (result < 0.01f)	// thickness of shell 
-					return val < 0 ? -1 : 1;
-				else
-					return 0;
-			};
-
-			// color according to the incoming density
-			auto colorFunc = [](const int density)
-			{
-				if (density > 0)
-				{
-					return cl::sycl::float4(0, 0, 1, 0); // blue
-				}
-				else if (density < 0)
-				{
-					return cl::sycl::float4(1, 1, 0, 0); // yellow
-				}
-				else
-					return  cl::sycl::float4(0, 0, 0, 0); // black
-			};
-
-			cl::sycl::float4 finalColor(0.0f, 0.0f, 0.0f, 0.0f);
-			cl::sycl::float3 location(0.0f, 0.0f, 0.0f);
-
-			location = camPos + startT * rayDirection;
-
-			float current_t = startT;
-
-			while (current_t < endT)
-			{
-				location = location + deltaS * rayDirection;
-				current_t += deltaS;
-
-				// check if it is inside
-				//if (!IsOutside(location))
-				float x = location.x();
-				float y = location.y();
-				float z = location.z();
-				//if (x < extent.m_maxX)
-				//if ((x < extent.m_maxX) && y < (extent.m_maxY) && (z < extent.m_maxZ) &&
-				//	(x > extent.m_minX) && (y > extent.m_minY) && (z > extent.m_minZ))
-				//{
-					// Convert to spherical coordinated
-					//float r = sqrt(location.x*location.x + location.y*location.y + location.z*location.z);
-#ifdef __SYCL_DEVICE_ONLY__
-					float r = cl::sycl::length(location);
-					float theta = cl::sycl::acos(location.z() / r); // *180 / 3.1415926f; // convert to degrees?
-					float phi = cl::sycl::atan2(y, x); // *180 / 3.1415926f;
-#else
-					float r = 0.f;
-					float theta = 0.f;
-					float phi = 0.f;
-#endif
-
-					cl::sycl::float4 color = colorFunc(densityFunc(r, theta, phi));
-
-
-					finalColor += color;
-				//} // end if check isInside
-
-				// stop the ray, when color reaches the saturation.
-				if (finalColor.r() > saturationThreshold || finalColor.g() > saturationThreshold
-					|| finalColor.b() > saturationThreshold)
-					break;
-			}
-
-			// normalizer according to the highest rgb value
-			auto normalizer = std::max((float)1.0f, std::max(std::max(finalColor.r(), finalColor.g()), finalColor.b()));
-			finalColor /= normalizer;
-			finalColor *= 255;
-
-
-			return cl::sycl::float4(finalColor.r(), finalColor.g(), finalColor.b(), 255.f);
-		};
-		// END raymarch lambda
-
-
-        compute_queue.submit([&](cl::sycl::handler& cgh)
-        {
-            using namespace cl::sycl;
-
-            auto old_lattice = latticeImages[Buffer::Front]->get_access<float4, access::mode::read>(cgh);
-            auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::write>(cgh);
-
-            sampler periodic{ coordinate_normalization_mode::unnormalized,
-                              addressing_mode::none,
-                              filtering_mode::nearest };
-
-			auto aspectRatio = (float)old_lattice.get_range()[0] / old_lattice.get_range()[1];
-			//float scaleFOV = tan(120.f / 2 * M_PI / 180);
-			// scaleFOV?
-			cgh.parallel_for<kernels::RaycasterStep>(range<2>{ old_lattice.get_range() },
-				[=, ViewToWorldMtx = m_viewToWorldMtx, camPos = m_vecEye, sphereCenter = glm::vec3(0.f, 0.f, 0.f), sphereRadius2 = 1.96f, raymarch = m_raymarch, deltaS = 0.02f
-												  ](const item<2> i)
-            {
-				// Minden mehet a regivel, mert jelenleg nem kell az uv koordinate transzformalgatas
-				int2 pixelIndex = i.get_id();
-				auto getPixelFromOldLattice = [=](int2 in) { return old_lattice.read(in, periodic); };
-				auto setPixelForNewLattice = [=](float4 in) { new_lattice.write((int2)i.get_id(), in); };
-
-				
-				glm::vec4 rayVec((2 * (i[0] + 0.5f) / (float)old_lattice.get_range()[0] - 1) * aspectRatio /* * scaleFOV */,
-					(1 - 2 * (i[1] + 0.5f) / (float)old_lattice.get_range()[1]) /* * scaleFOV*/,
-					-1.0f, 1.0f);
-
-				float t0 = -1E+36f;
-				float t1 = -1E+36f;
-
-				glm::vec3 transformedCamRayDir = glm::vec3(ViewToWorldMtx * rayVec) - camPos;
-#ifdef __SYCL_DEVICE_ONLY__
-				cl::sycl::float3 transformedCamRayDirFloat3 = cl::sycl::normalize(cl::sycl::float3{ transformedCamRayDir.x, transformedCamRayDir.y, transformedCamRayDir.z });
-#else
-				cl::sycl::float3 transformedCamRayDirFloat3;
-#endif
-
-				auto getIntersections_lambda = [&t0, &t1](const cl::sycl::float3 rayorig, const cl::sycl::float3 raydir, const cl::sycl::float3 sphereCenter,
-					const float sphereRadius2) {
-					cl::sycl::float3 l = sphereCenter - rayorig;
-					float tca = cl::sycl::dot(l, raydir);
-					float d2 = cl::sycl::dot(l, l) - tca * tca;
-
-					bool isIntersected = true;
-					if ((sphereRadius2 - d2) < 0.0001f) {
-						isIntersected = false;
-
-					}
-#ifdef __SYCL_DEVICE_ONLY__
-					float thc = cl::sycl::sqrt(sphereRadius2 - d2);
-#else
-					float thc = 0.f;
-#endif
-					t0 = tca - thc;
-					t1 = tca + thc;
-
-					return isIntersected;
-
-				};
-
-				auto camPosFloat3 = cl::sycl::float3(camPos.x, camPos.y, camPos.z);
-				auto bIntersected = getIntersections_lambda(camPosFloat3, transformedCamRayDirFloat3,
-					cl::sycl::float3(sphereCenter.x, sphereCenter.y, sphereCenter.z), sphereRadius2);
-
-				cl::sycl::float4 pixelColor;
-				if (bIntersected && t0 > 0.0 && t1 > 0.0)
-				{
-					//pixelColor = cl::sycl::float4(255, 0, 0, 255);
-					pixelColor = raymarch(camPosFloat3, transformedCamRayDirFloat3, t0, t1, deltaS);
-				}
-				// if we are inside the spehere, we trace from the the ray's original position
-				else if (bIntersected && t1 > 0.0)
-				{
-					//pixelColor = cl::sycl::float4(0, 255, 0, 255);
-					pixelColor = raymarch(camPosFloat3, transformedCamRayDirFloat3, 0.0, t1, deltaS);
-				}
-				else
-				{
-					pixelColor = cl::sycl::float4(0.f, 0.f, 0.f, 255.f);
-				}
-
-				// seting rgb value for every pixel
-				setPixelForNewLattice(pixelColor);
-            });
-        });
-    }
-    catch (cl::sycl::compile_program_error e)
-    {
-        qDebug() << e.what();
-        std::exit(e.get_cl_code());
-    }
-    catch (cl::sycl::exception e)
-    {
-        qDebug() << e.what();
-        std::exit(e.get_cl_code());
-    }
-    catch (std::exception e)
-    {
-        qDebug() << e.what();
-        std::exit(EXIT_FAILURE);
-    }
-
-    CLcommandqueues().at(dev_id).enqueueReleaseGLObjects(&interop_resources, nullptr, &release);
-
-    // Wait for all OpenCL commands to finish
-    if (!cl_khr_gl_event_supported) cl::finish();
-    else release.wait();
-  
-    // Swap front and back buffer handles
-    std::swap(CL_latticeImages[Front], CL_latticeImages[Back]);
-    std::swap(latticeImages[Front], latticeImages[Back]);
-    std::swap(texs[Front], texs[Back]);
-    
-    imageDrawn = false;
-}
-
 // Override unimplemented InteropWindow function
 void Raycaster::render()
 {
@@ -588,6 +350,243 @@ void Raycaster::setMatrices()
 
 	m_viewToWorldMtx = glm::inverse(worldToView);
 }
+//Override unimplemented InteropWindow function
+void Raycaster::updateScene()
+{
+	// NOTE 1: When cl_khr_gl_event is NOT supported, then clFinish() is the only portable
+	//         sync method and hence that will be called.
+	//
+	// NOTE 2.1: When cl_khr_gl_event IS supported AND the possibly conflicting OpenGL
+	//           context is current to the thread, then it is sufficient to wait for events
+	//           of clEnqueueAcquireGLObjects, as the spec guarantees that all OpenGL
+	//           operations involving the acquired memory objects have finished. It also
+	//           guarantees that any OpenGL commands issued after clEnqueueReleaseGLObjects
+	//           will not execute until the release is complete.
+	//         
+	//           See: opencl-1.2-extensions.pdf (Rev. 15. Chapter 9.8.5)
+
+	cl::Event acquire, release;
+
+	CLcommandqueues().at(dev_id).enqueueAcquireGLObjects(&interop_resources, nullptr, &acquire);
+
+	try
+	{
+		// Start raymarch lambda
+		auto m_raymarch = [](const cl::sycl::float3& camPos, const cl::sycl::float3& rayDirection, const float startT, const float endT, const float deltaS)
+		{
+			int saturationThreshold = 0;
+			// example lambda functions that could be given by the user
+			// density function(spherical harminics) inside the extent
+			auto densityFunc = [=](const float& r, const float& theta, const float& /*phi*/)
+			{
+#ifdef __SYCL_DEVICE_ONLY__
+				float sqrt3fpi = cl::sycl::sqrt(3.0f / M_PI);
+				//float val = 1.0f / 2.0f * sqrt3fpi * cl::sycl::cos(theta + phiii); // Y(l = 1, m = 0)
+				float val = 1.0f / 2.0f * sqrt3fpi * cl::sycl::cos(theta); // Y(l = 1, m = 0)
+				float result = cl::sycl::fabs(2 * cl::sycl::fabs(val) - r);
+#else
+				float sqrt3fpi = 1.0f;
+				float val = 1.0f;
+				float result = 1.0f;
+
+				(void)sqrt3fpi;
+				(void)r;
+				(void)theta;
+#endif
+				if (result < 0.01f)	// thickness of shell 
+					return val < 0 ? -1 : 1;
+				else
+					return 0;
+			};
+
+			// color according to the incoming density
+			auto colorFunc = [](const int density)
+			{
+				if (density > 0)
+				{
+					return cl::sycl::float4(0, 0, 1, 0); // blue
+				}
+				else if (density < 0)
+				{
+					return cl::sycl::float4(1, 1, 0, 0); // yellow
+				}
+				else
+					return  cl::sycl::float4(0, 0, 0, 0); // black
+			};
+
+			cl::sycl::float4 finalColor(0.0f, 0.0f, 0.0f, 0.0f);
+			cl::sycl::float3 location(0.0f, 0.0f, 0.0f);
+
+			location = camPos + startT * rayDirection;
+
+			float current_t = startT;
+
+			while (current_t < endT)
+			{
+				location = location + deltaS * rayDirection;
+				current_t += deltaS;
+
+				// check if it is inside
+				//if (!IsOutside(location))
+				float x = location.x();
+				float y = location.y();
+				float z = location.z();
+				//if (x < extent.m_maxX)
+				//if ((x < extent.m_maxX) && y < (extent.m_maxY) && (z < extent.m_maxZ) &&
+				//	(x > extent.m_minX) && (y > extent.m_minY) && (z > extent.m_minZ))
+				//{
+					// Convert to spherical coordinated
+					//float r = sqrt(location.x*location.x + location.y*location.y + location.z*location.z);
+#ifdef __SYCL_DEVICE_ONLY__
+				float r = cl::sycl::length(location);
+				float theta = cl::sycl::acos(location.z() / r); // *180 / 3.1415926f; // convert to degrees?
+				float phi = cl::sycl::atan2(y, x); // *180 / 3.1415926f;
+#else
+				float r = 0.f;
+				float theta = 0.f;
+				float phi = 0.f;
+#endif
+
+				cl::sycl::float4 color = colorFunc(densityFunc(r, theta, phi));
+
+
+				finalColor += color;
+				//} // end if check isInside
+
+				// stop the ray, when color reaches the saturation.
+				if (finalColor.r() > saturationThreshold || finalColor.g() > saturationThreshold
+					|| finalColor.b() > saturationThreshold)
+					break;
+			}
+
+			// normalizer according to the highest rgb value
+			auto normalizer = std::max((float)1.0f, std::max(std::max(finalColor.r(), finalColor.g()), finalColor.b()));
+			finalColor /= normalizer;
+			finalColor *= 255;
+
+
+			return cl::sycl::float4(finalColor.r(), finalColor.g(), finalColor.b(), 255.f);
+		};
+		// END raymarch lambda
+
+
+		compute_queue.submit([&](cl::sycl::handler& cgh)
+		{
+			using namespace cl::sycl;
+
+			auto old_lattice = latticeImages[Buffer::Front]->get_access<float4, access::mode::read>(cgh);
+			auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::write>(cgh);
+
+			sampler periodic{ coordinate_normalization_mode::unnormalized,
+							  addressing_mode::none,
+							  filtering_mode::nearest };
+
+			auto aspectRatio = (float)old_lattice.get_range()[0] / old_lattice.get_range()[1];
+			//float scaleFOV = tan(120.f / 2 * M_PI / 180);
+			// scaleFOV?
+			cgh.parallel_for<kernels::RaycasterStep>(range<2>{ old_lattice.get_range() },
+				[=, ViewToWorldMtx = m_viewToWorldMtx, camPos = m_vecEye, sphereCenter = glm::vec3(0.f, 0.f, 0.f), sphereRadius2 = 1.96f, raymarch = m_raymarch, deltaS = 0.02f
+				](const item<2> i)
+			{
+				// Minden mehet a regivel, mert jelenleg nem kell az uv koordinate transzformalgatas
+				int2 pixelIndex = i.get_id();
+				auto getPixelFromOldLattice = [=](int2 in) { return old_lattice.read(in, periodic); };
+				auto setPixelForNewLattice = [=](float4 in) { new_lattice.write((int2)i.get_id(), in); };
+
+
+				glm::vec4 rayVec((2 * (i[0] + 0.5f) / (float)old_lattice.get_range()[0] - 1)* aspectRatio /* * scaleFOV */,
+					(1 - 2 * (i[1] + 0.5f) / (float)old_lattice.get_range()[1]) /* * scaleFOV*/,
+					-1.0f, 1.0f);
+
+				float t0 = -1E+36f;
+				float t1 = -1E+36f;
+
+				glm::vec3 transformedCamRayDir = glm::vec3(ViewToWorldMtx * rayVec) - camPos;
+#ifdef __SYCL_DEVICE_ONLY__
+				cl::sycl::float3 transformedCamRayDirFloat3 = cl::sycl::normalize(cl::sycl::float3{ transformedCamRayDir.x, transformedCamRayDir.y, transformedCamRayDir.z });
+#else
+				cl::sycl::float3 transformedCamRayDirFloat3;
+#endif
+
+				auto getIntersections_lambda = [&t0, &t1](const cl::sycl::float3 rayorig, const cl::sycl::float3 raydir, const cl::sycl::float3 sphereCenter,
+					const float sphereRadius2) {
+					cl::sycl::float3 l = sphereCenter - rayorig;
+					float tca = cl::sycl::dot(l, raydir);
+					float d2 = cl::sycl::dot(l, l) - tca * tca;
+
+					bool isIntersected = true;
+					if ((sphereRadius2 - d2) < 0.0001f) {
+						isIntersected = false;
+
+					}
+#ifdef __SYCL_DEVICE_ONLY__
+					float thc = cl::sycl::sqrt(sphereRadius2 - d2);
+#else
+					float thc = 0.f;
+#endif
+					t0 = tca - thc;
+					t1 = tca + thc;
+
+					return isIntersected;
+
+				};
+
+				auto camPosFloat3 = cl::sycl::float3(camPos.x, camPos.y, camPos.z);
+				auto bIntersected = getIntersections_lambda(camPosFloat3, transformedCamRayDirFloat3,
+					cl::sycl::float3(sphereCenter.x, sphereCenter.y, sphereCenter.z), sphereRadius2);
+
+				cl::sycl::float4 pixelColor;
+				if (bIntersected && t0 > 0.0 && t1 > 0.0)
+				{
+					//pixelColor = cl::sycl::float4(255, 0, 0, 255);
+					pixelColor = raymarch(camPosFloat3, transformedCamRayDirFloat3, t0, t1, deltaS);
+				}
+				// if we are inside the spehere, we trace from the the ray's original position
+				else if (bIntersected && t1 > 0.0)
+				{
+					//pixelColor = cl::sycl::float4(0, 255, 0, 255);
+					pixelColor = raymarch(camPosFloat3, transformedCamRayDirFloat3, 0.0, t1, deltaS);
+				}
+				else
+				{
+					pixelColor = cl::sycl::float4(0.f, 0.f, 0.f, 255.f);
+				}
+
+				// seting rgb value for every pixel
+				setPixelForNewLattice(pixelColor);
+			});
+		});
+	}
+	catch (cl::sycl::compile_program_error e)
+	{
+		qDebug() << e.what();
+		std::exit(e.get_cl_code());
+	}
+	catch (cl::sycl::exception e)
+	{
+		qDebug() << e.what();
+		std::exit(e.get_cl_code());
+	}
+	catch (std::exception e)
+	{
+		qDebug() << e.what();
+		std::exit(EXIT_FAILURE);
+	}
+
+	CLcommandqueues().at(dev_id).enqueueReleaseGLObjects(&interop_resources, nullptr, &release);
+
+	// Wait for all OpenCL commands to finish
+	if (!cl_khr_gl_event_supported) cl::finish();
+	else release.wait();
+
+	// Swap front and back buffer handles
+	std::swap(CL_latticeImages[Front], CL_latticeImages[Back]);
+	std::swap(latticeImages[Front], latticeImages[Back]);
+	std::swap(texs[Front], texs[Back]);
+
+	imageDrawn = false;
+}
+
 
 void Raycaster::updateScene_2()
 {
@@ -617,16 +616,17 @@ void Raycaster::updateScene_2()
 			auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::write>(cgh);
 
 			sampler periodic{ coordinate_normalization_mode::normalized,
-				addressing_mode::repeat,
-				filtering_mode::nearest };
+					addressing_mode::repeat,
+					filtering_mode::nearest };
 
 			float2 d = float2{ 1, 1 } / float2{ old_lattice.get_range()[0], old_lattice.get_range()[1] };
+
 
 			cgh.parallel_for<kernels::Test>(range<2>{ old_lattice.get_range() },
 				[=](const item<2> i)
 			{
 				// Convert unnormalized floating coords offsetted by self to normalized uv
-				auto uv = [=, s = float2{ i.get_id()[0], i.get_id()[1] }](float2 in) { return (s + in) * d; };
+				auto uv = [=, s = float2{ i.get_id()[0], i.get_id()[1] }, d2 = d * 0.5f](float2 in) { return (s + in) * d + d2; };
 
 				auto old = [=](float2 in) { return old_lattice.read(uv(in), periodic).r() > 0.5f; };
 				auto next = [=](bool v) { new_lattice.write((int2)i.get_id(), float4{ v, v, v, 1.f }); };
@@ -641,6 +641,99 @@ void Raycaster::updateScene_2()
 				auto count = std::count(neighbours.cbegin(), neighbours.cend(), true);
 
 				next(self ? (count < 2 || count > 3 ? 0.f : 1.f) : (count == 3 ? 1.f : 0.f));
+			});
+		});
+	}
+	catch (cl::sycl::compile_program_error e)
+	{
+		qDebug() << e.what();
+		std::exit(e.get_cl_code());
+	}
+	catch (cl::sycl::exception e)
+	{
+		qDebug() << e.what();
+		std::exit(e.get_cl_code());
+	}
+	catch (std::exception e)
+	{
+		qDebug() << e.what();
+		std::exit(EXIT_FAILURE);
+	}
+
+	CLcommandqueues().at(dev_id).enqueueReleaseGLObjects(&interop_resources, nullptr, &release);
+
+	// Wait for all OpenCL commands to finish
+	if (!cl_khr_gl_event_supported) cl::finish();
+	else release.wait();
+
+	// Swap front and back buffer handles
+	std::swap(CL_latticeImages[Front], CL_latticeImages[Back]);
+	std::swap(latticeImages[Front], latticeImages[Back]);
+	std::swap(texs[Front], texs[Back]);
+
+	imageDrawn = false;
+}
+
+
+void Raycaster::updateScene_lbm()
+{
+	// NOTE 1: When cl_khr_gl_event is NOT supported, then clFinish() is the only portable
+	//         sync method and hence that will be called.
+	//
+	// NOTE 2.1: When cl_khr_gl_event IS supported AND the possibly conflicting OpenGL
+	//           context is current to the thread, then it is sufficient to wait for events
+	//           of clEnqueueAcquireGLObjects, as the spec guarantees that all OpenGL
+	//           operations involving the acquired memory objects have finished. It also
+	//           guarantees that any OpenGL commands issued after clEnqueueReleaseGLObjects
+	//           will not execute until the release is complete.
+	//         
+	//           See: opencl-1.2-extensions.pdf (Rev. 15. Chapter 9.8.5)
+
+	cl::Event acquire, release;
+
+	CLcommandqueues().at(dev_id).enqueueAcquireGLObjects(&interop_resources, nullptr, &acquire);
+
+	try
+	{
+		compute_queue.submit([&](cl::sycl::handler& cgh)
+		{
+			using namespace cl::sycl;
+
+			auto old_lattice = latticeImages[Buffer::Front]->get_access<float4, access::mode::read>(cgh);
+			auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::write>(cgh);
+
+			sampler periodic{ coordinate_normalization_mode::normalized,
+					addressing_mode::repeat,
+					filtering_mode::nearest };
+
+			float2 d = float2{ 1, 1 } / float2{ old_lattice.get_range()[0], old_lattice.get_range()[1] };
+
+
+			cgh.parallel_for<kernels::Lbm>(range<2>{ old_lattice.get_range() },
+				[=](const item<2> i)
+			{
+				// Convert unnormalized floating coords offsetted by self to normalized uv
+				auto uv = [=, s = float2{ i.get_id()[0], i.get_id()[1] }, d2 = d * 0.5f](float2 in) { return (s + in) * d + d2; };
+
+				auto old = [=](float2 in) { return old_lattice.read(uv(in), periodic).r() > 0.5f; };
+				auto next = [=](bool v) { new_lattice.write((int2)i.get_id(), float4{ v, v, v, 1.f }); };
+
+				std::array<bool, 8> neighbours = {
+					old(float2{ -1,+1 }), old(float2{ 0,+1 }), old(float2{ +1,+1 }),
+					old(float2{ -1,0 }),                     old(float2{ +1,0 }),
+					old(float2{ -1,-1 }), old(float2{ 0,-1 }), old(float2{ +1,-1 }) };
+
+				bool self = old(float2{ 0,0 });
+
+				auto count = std::count(neighbours.cbegin(), neighbours.cend(), true);
+
+				next(self ? (count < 2 || count > 3 ? 0.f : 1.f) : (count == 3 ? 1.f : 0.f));
+
+				// START LBM
+				auto collide = []() {};
+				auto streamToNeighbours = []() {};
+				auto computefEq = []() {};
+				// END LBM
 			});
 		});
 	}

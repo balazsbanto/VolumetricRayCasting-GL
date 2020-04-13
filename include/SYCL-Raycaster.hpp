@@ -31,7 +31,7 @@
 #include <memory>       // std::unique_ptr
 
 
-namespace kernels { struct RaycasterStep; struct Test;}
+namespace kernels { struct RaycasterStep; struct Test; struct Lbm; }
 
 
 class Raycaster : public InteropWindow
@@ -50,6 +50,7 @@ public:
     virtual void initializeCL() override;
     virtual void updateScene() override;
     virtual void updateScene_2();
+    virtual void updateScene_lbm();
     virtual void render() override;
     virtual void render(QPainter* painter) override;
     virtual void resizeGL(QResizeEvent* event_in) override;
