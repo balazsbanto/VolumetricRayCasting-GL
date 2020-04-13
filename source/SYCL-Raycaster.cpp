@@ -674,6 +674,74 @@ void Raycaster::updateScene_2()
 	imageDrawn = false;
 }
 
+size_t Raycaster::getMeshSize() {
+	return width() * height();
+}
+
+size_t Raycaster::getNrOf_f() {
+	return width() * height() * N;
+}
+
+void Raycaster::resetLBM() {
+	// Initial velocity is 0
+	h_if0.resize(getMeshSize());
+	h_type.resize(getMeshSize());
+
+	h_if1234.resize(getNrOf_f());
+	h_if1234.resize(getNrOf_f());
+	
+	rho.resize(getMeshSize());
+	u.resize(getMeshSize() * DIM);
+	
+
+	cl_float2 u0 = { 0.f, 0.f };
+
+	for (int y = 0; y < height(); y++) {
+		for (int x = 0; y < width(); x++) {
+
+			int pos = x + y * width();
+			float den = 10.0f;
+
+			// Initialize the velocity buffer
+			u[pos] = u0;
+
+			h_if0[pos] = computefEq(w[0], e[0], den, u0);
+			h_if1234[pos * 4 + 0] = computefEq(w[1], e[1], den, u0);
+			h_if1234[pos * 4 + 1] = computefEq(w[2], e[2], den, u0);
+			h_if1234[pos * 4 + 2] = computefEq(w[3], e[3], den, u0);
+			h_if1234[pos * 4 + 3] = computefEq(w[4], e[4], den, u0);
+
+			h_if5678[pos * 4 + 0] = computefEq(w[5], e[5], den, u0);
+			h_if5678[pos * 4 + 1] = computefEq(w[6], e[6], den, u0);
+			h_if5678[pos * 4 + 2] = computefEq(w[7], e[7], den, u0);
+			h_if5678[pos * 4 + 3] = computefEq(w[8], e[8], den, u0);
+
+			// Initialize boundary cells
+			if (x == 0 || x == (width() - 1) || y == 0 || y == (height() - 1))
+			{
+				h_type[pos] = 1;
+			}
+
+			// Initialize fluid cells
+			else
+			{
+				h_type[pos] = 0;
+			}
+
+		}
+	}
+	
+}
+
+float Raycaster::computefEq(cl_float weight, float dir[2], float rho,
+	cl_float2 velocity) {
+
+	float u2 = velocity.s[0] * velocity.s[0] + velocity.s[1] * velocity.s[1];
+	float eu = dir[0] * velocity.s[0] + dir[1] * velocity.s[1];
+
+	return rho * weight * (1.0 + 3.0 * eu + 4.5 * eu * eu - 1.5 * u2);
+}
+
 
 void Raycaster::updateScene_lbm()
 {
@@ -730,9 +798,21 @@ void Raycaster::updateScene_lbm()
 				next(self ? (count < 2 || count > 3 ? 0.f : 1.f) : (count == 3 ? 1.f : 0.f));
 
 				// START LBM
+				auto isBoundary = []() {};
+				auto isFluid = []() {};
 				auto collide = []() {};
 				auto streamToNeighbours = []() {};
-				auto computefEq = []() {};
+
+				float4 a = { 1,2,3,4 };
+				float4 b = { 1,2,3,4 };
+				auto c = a + b;
+				
+				auto computefEq = [](cl_float weight, float2 dir, cl_float rho,	float2 velocity) {
+					cl_float u2 = dot(velocity, velocity);
+					cl_float eu = dot(dir, velocity);
+					return rho * weight * (1.0f + 3.0f * eu + 4.5f * eu * eu - 1.5f * u2);
+
+				};
 				// END LBM
 			});
 		});
