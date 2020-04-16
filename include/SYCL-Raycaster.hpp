@@ -50,7 +50,7 @@ public:
     virtual void initializeCL() override;
     virtual void updateScene() override;
     virtual void updateScene_2();
-    virtual void updateScene_lbm();
+    virtual void updateScene_3();
     virtual void render() override;
     virtual void render(QPainter* painter) override;
     virtual void resizeGL(QResizeEvent* event_in) override;
@@ -63,22 +63,31 @@ public:
     float e[9][2] = { {0,0}, {1,0}, {0,1}, {-1,0}, {0,-1}, {1,1}, {-1,1}, {-1,-1}, {1,-1} };
 
     // Weights
-    float w[9] = { 4.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0 };
+    std::vector<float> w { 4.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0 };
 
     // Omega
     const cl_float omega = 1.2f;
     std::vector<float> rho;
     std::vector<cl_float2> u;
+    std::vector<int> h_dirX { 0, 1, 0, -1,  0, 1, -1,  -1,  1};
+    std::vector<int> h_dirY { 0, 0, 1,  0, -1, 1,  1,  -1, -1};
     std::vector<float> h_if0;
     std::vector<float> h_if1234;
-    //std::vector<std::array<float, 4>> h_if1234;
     std::vector<float> h_if5678;
-    //std::vector<std::array<float, 4>> h_if5678;
-    std::vector<bool> h_type;
+
+    // Device outputs
+    std::vector<float> d_of0;
+    std::vector<float> d_of1234;
+    std::vector<float> d_of5678;
+    std::vector<float> d_velocity;
+
+
+    bool *h_type;
 
     // helper function
     size_t getMeshSize();
     size_t getNrOf_f();
+    size_t getU_size();
     float computefEq(cl_float weight, float dir[2], float rho,
         cl_float2 velocity);
     size_t N = 4;

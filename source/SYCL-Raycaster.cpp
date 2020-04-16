@@ -126,6 +126,7 @@ void Raycaster::initializeGL()
     for (const QOpenGLDebugMessage& message : log->loggedMessages()) qDebug() << message << "\n";
 
 	setMatrices();
+	resetLBM();
 
      qDebug("Raycaster: Leaving initializeGL");
 }
@@ -351,7 +352,7 @@ void Raycaster::setMatrices()
 	m_viewToWorldMtx = glm::inverse(worldToView);
 }
 //Override unimplemented InteropWindow function
-void Raycaster::updateScene()
+void Raycaster::updateScene_3()
 {
 	// NOTE 1: When cl_khr_gl_event is NOT supported, then clFinish() is the only portable
 	//         sync method and hence that will be called.
@@ -679,25 +680,32 @@ size_t Raycaster::getMeshSize() {
 }
 
 size_t Raycaster::getNrOf_f() {
-	return width() * height() * N;
+	return getMeshSize() * N;
+}
+
+size_t Raycaster::getU_size() {
+	return getMeshSize() * DIM;
 }
 
 void Raycaster::resetLBM() {
+	auto wi = width();
+	auto he = height();
+	auto mesh = width() * height();
 	// Initial velocity is 0
 	h_if0.resize(getMeshSize());
-	h_type.resize(getMeshSize());
+	h_type =  new bool[getMeshSize()];
 
 	h_if1234.resize(getNrOf_f());
-	h_if1234.resize(getNrOf_f());
+	h_if5678.resize(getNrOf_f());
 	
 	rho.resize(getMeshSize());
-	u.resize(getMeshSize() * DIM);
+	u.resize(getU_size() * DIM);
 	
 
 	cl_float2 u0 = { 0.f, 0.f };
 
 	for (int y = 0; y < height(); y++) {
-		for (int x = 0; y < width(); x++) {
+		for (int x = 0; x < width(); x++) {
 
 			int pos = x + y * width();
 			float den = 10.0f;
@@ -743,7 +751,7 @@ float Raycaster::computefEq(cl_float weight, float dir[2], float rho,
 }
 
 
-void Raycaster::updateScene_lbm()
+void Raycaster::updateScene()
 {
 	// NOTE 1: When cl_khr_gl_event is NOT supported, then clFinish() is the only portable
 	//         sync method and hence that will be called.
@@ -760,59 +768,192 @@ void Raycaster::updateScene_lbm()
 	cl::Event acquire, release;
 
 	CLcommandqueues().at(dev_id).enqueueAcquireGLObjects(&interop_resources, nullptr, &acquire);
+	using namespace cl::sycl;
 
 	try
 	{
+		
+		buffer<float, 1> if0_buffer { h_if0.data(), range<1> {getMeshSize()} };
+		buffer<float4, 1> if1234_buffer { reinterpret_cast<float4*>(h_if1234.data()), range<1> {getMeshSize()} };
+		buffer<float4, 1> if5678_buffer{ reinterpret_cast<float4*>(h_if5678.data()), range<1> { getMeshSize()} };
+		buffer<bool, 1>  type_buffer{ h_type, range<1> {getMeshSize()} };
+
+		buffer<float, 1> of0_buffer{ d_of0.data(), range<1> {getMeshSize()} };
+		buffer<float4, 1> of1234_buffer{ reinterpret_cast<float4*>(d_of1234.data()), range<1> {getMeshSize()} };
+		buffer<float4, 1> of5678_buffer{ reinterpret_cast<float4*>(d_of5678.data()), range<1> { getMeshSize()} };
+		buffer<float2, 1> velocity_buffer{ reinterpret_cast<float2*>(d_velocity.data()), range<1> {getMeshSize()} };
+
+
+
+
 		compute_queue.submit([&](cl::sycl::handler& cgh)
 		{
-			using namespace cl::sycl;
+
+			auto if0 = if0_buffer.get_access<access::mode::read>(cgh);
+			auto if1234 = if1234_buffer.get_access<access::mode::read>(cgh);
+			auto if5678 = if5678_buffer.get_access<access::mode::read>(cgh);
+			auto type = type_buffer.get_access<access::mode::read>(cgh);
+			
+			auto velocity_out = velocity_buffer.get_access<access::mode::discard_write>(cgh);
+			auto of0 = of0_buffer.get_access<access::mode::discard_write>(cgh);
+			auto of1234 = of1234_buffer.get_access<access::mode::discard_write>(cgh);
+			auto of5678 = of5678_buffer.get_access<access::mode::discard_write>(cgh);
+
 
 			auto old_lattice = latticeImages[Buffer::Front]->get_access<float4, access::mode::read>(cgh);
 			auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::write>(cgh);
 
-			sampler periodic{ coordinate_normalization_mode::normalized,
-					addressing_mode::repeat,
-					filtering_mode::nearest };
+			sampler periodic{ coordinate_normalization_mode::unnormalized,
+							  addressing_mode::none,
+							  filtering_mode::nearest };
 
-			float2 d = float2{ 1, 1 } / float2{ old_lattice.get_range()[0], old_lattice.get_range()[1] };
-
+			//float2 d = float2{ 1, 1 } / float2{ old_lattice.get_range()[0], old_lattice.get_range()[1] };
+			int screen_width = width();
+			int screen_height = height();
 
 			cgh.parallel_for<kernels::Lbm>(range<2>{ old_lattice.get_range() },
-				[=](const item<2> i)
+				[=, dirX = h_dirX, dirY = h_dirY, weight = w, om = omega, width = screen_width, height = screen_height](const item<2> i)
 			{
-				// Convert unnormalized floating coords offsetted by self to normalized uv
-				auto uv = [=, s = float2{ i.get_id()[0], i.get_id()[1] }, d2 = d * 0.5f](float2 in) { return (s + in) * d + d2; };
 
-				auto old = [=](float2 in) { return old_lattice.read(uv(in), periodic).r() > 0.5f; };
-				auto next = [=](bool v) { new_lattice.write((int2)i.get_id(), float4{ v, v, v, 1.f }); };
+				auto getPixelFromOldLattice = [=](int2 in) { return old_lattice.read(in, periodic); };
+				auto setPixelForNewLattice = [=](float4 in) { new_lattice.write((int2)i.get_id(), in); };
 
-				std::array<bool, 8> neighbours = {
-					old(float2{ -1,+1 }), old(float2{ 0,+1 }), old(float2{ +1,+1 }),
-					old(float2{ -1,0 }),                     old(float2{ +1,0 }),
-					old(float2{ -1,-1 }), old(float2{ 0,-1 }), old(float2{ +1,-1 }) };
+				uint2 id = (uint2)(i.get_id()[0], (i.get_id()[1]));
+				uint pos = id.x() + width * id.y();
 
-				bool self = old(float2{ 0,0 });
+				// Read input distributions
+				float f0 = if0[pos];
+				float4 f1234 = if1234[pos];
+				float4 f5678 = if5678[pos];
 
-				auto count = std::count(neighbours.cbegin(), neighbours.cend(), true);
+				float rho;	//Density
+				float2 u;	//Velocity
 
-				next(self ? (count < 2 || count > 3 ? 0.f : 1.f) : (count == 3 ? 1.f : 0.f));
+				// Collide
+				//boundary
+				if (type[pos]) {
+					// Swap directions by swizzling
+					 // Swap directions by swizzling
+					/*f1234.x() = f1234.z();
+					f1234.y() = f1234.w();
+					f1234.z() = f1234.x();
+					f1234.w() = f1234.y();
+
+					f5678.x() = f5678.z();
+					f5678.y() = f5678.w();
+					f5678.z() = f5678.x();
+					f5678.w() = f5678.y();*/
+
+					rho = 0;
+					u = (float2)(0.f, 0.f);
+				} 
+				// fluid
+				else 
+				{
+					// Compute rho and u
+					// Rho is computed by doing a reduction on f
+					float4 temp = f1234 + f5678;
+					temp.lo() += temp.hi();
+					rho = temp.x() + temp.y();
+					rho += f0;
+
+					// Compute velocity
+					//float x = f1234.x() * float(1.0);
+
+					// TODO: check if I use f1234.get_value(index) instead
+					u.x() = (f1234.x() * float(dirX[1])  + f1234.y() * float(dirX[2]) + f1234.z() * float(dirX[3]) + f1234.w() * float(dirX[4])
+						+ f5678.x() * float(dirX[5]) +
+						f5678.y() * float(dirX[6]) + f5678.z() * float(dirX[7]) + f5678.w() * float(dirX[8])  ) / rho;
+
+					u.y() = (f1234.x() * float(dirY[1]) + f1234.y() * float(dirY[2]) + f1234.z() * float(dirY[3]) + f1234.w() * float(dirY[4])
+						+ f5678.x() * float(dirY[5]) +
+						f5678.y() * float(dirY[6]) + f5678.z() * float(dirY[7]) + f5678.w() * float(dirY[8])) / rho;
+
+					float4 fEq1234;	// Stores feq 
+					float4 fEq5678;
+					float fEq0;
+
+					auto computefEq = [](float rho, float weight, float2 dir, float2 u) {
+						float u2 = dot(u, u);
+						float eu = dot(dir, u);
+						return rho * weight * (1.0f + 3.0f * eu + 4.5f * eu * eu - 1.5f * u2);
+
+					};
+
+					// Compute fEq
+					fEq0 = computefEq(rho, weight[0], (float2)(0, 0), u);
+					fEq1234.x() = computefEq(rho, weight[1], (float2)(dirX[1], dirY[1]), u);
+					fEq1234.y() = computefEq(rho, weight[2], (float2)(dirX[2], dirY[2]), u);
+					fEq1234.z() = computefEq(rho, weight[3], (float2)(dirX[3], dirY[3]), u);
+					fEq1234.w() = computefEq(rho, weight[4], (float2)(dirX[4], dirY[4]), u);
+					fEq5678.x() = computefEq(rho, weight[5], (float2)(dirX[5], dirY[5]), u);
+					fEq5678.y() = computefEq(rho, weight[6], (float2)(dirX[6], dirY[6]), u);
+					fEq5678.z() = computefEq(rho, weight[7], (float2)(dirX[7], dirY[7]), u);
+					fEq5678.w() = computefEq(rho, weight[8], (float2)(dirX[8], dirY[8]), u);
+
+					f0 =	(1 - om) * f0 + om * fEq0;
+					f1234 = (1 - om) * f1234 + om * fEq1234;
+					f5678 = (1 - om) * f5678 + om * fEq5678;
+				}
+
+				velocity_out[pos] = u;
+
+				// Propagate
+				// New positions to write (Each thread will write 8 values)
+				
+				int8 x8 = int8(id.x());
+				int8 y8 = int8(id.y());
+				int8 width8 = int8(width);
+
+				int8 nX = x8 + int8(dirX[1], dirX[2], dirX[3], dirX[4], dirX[5], dirX[6], dirX[7], dirX[8]);
+				int8 nY = y8 + int8(dirY[1], dirY[2], dirY[3], dirY[4], dirY[5], dirY[6], dirY[7], dirY[8]);
+				int8 nPos = nX + width8 * nY;
+
+				// Write center distribution to thread's location
+				of0[pos] = f0;
+
+				int t1 = id.x() < uint(width - 1); // Not on Right boundary
+				int t4 = id.y() > uint(0);                      // Not on Upper boundary
+				int t3 = id.x() > uint(0);                      // Not on Left boundary
+				int t2 = id.y() < uint(height - 1); // Not on lower boundary
+
+				// Propagate to right cell
+				if (t1)
+					of1234[nPos.s0()].x() = f1234.x();
+
+				// Propagate to Lower cell
+				if (t2)
+					of1234[nPos.s1()].y() = f1234.y();
+
+				// Propagate to left cell
+				if (t3)
+					of1234[nPos.s2()].z() = f1234.z();
+
+				// Propagate to Upper cell
+				if (t4)
+					of1234[nPos.s3()].w() = f1234.w();
+
+				// Propagate to Lower-Right cell
+				if (t1 && t2)
+					of5678[nPos.s4()].x() = f5678.x();
+
+				// Propogate to Lower-Left cell
+				if (t2 && t3)
+					of5678[nPos.s5()].y() = f5678.y();
+
+				// Propagate to Upper-Left cell
+				if (t3 && t4)
+					of5678[nPos.s6()].z() = f5678.z();
+
+				// Propagate to Upper-Right cell
+				if (t4 && t1)
+					of5678[nPos.s7()].w() = f5678.w();
 
 				// START LBM
-				auto isBoundary = []() {};
+				/*auto isBoundary = []() {};
 				auto isFluid = []() {};
 				auto collide = []() {};
-				auto streamToNeighbours = []() {};
-
-				float4 a = { 1,2,3,4 };
-				float4 b = { 1,2,3,4 };
-				auto c = a + b;
-				
-				auto computefEq = [](cl_float weight, float2 dir, cl_float rho,	float2 velocity) {
-					cl_float u2 = dot(velocity, velocity);
-					cl_float eu = dot(dir, velocity);
-					return rho * weight * (1.0f + 3.0f * eu + 4.5f * eu * eu - 1.5f * u2);
-
-				};
+				auto streamToNeighbours = []() {};*/
 				// END LBM
 			});
 		});
@@ -838,6 +979,10 @@ void Raycaster::updateScene_lbm()
 	// Wait for all OpenCL commands to finish
 	if (!cl_khr_gl_event_supported) cl::finish();
 	else release.wait();
+
+	// TEST
+	qDebug() << d_velocity.size() << "\n";;
+	// END TEST
 
 	// Swap front and back buffer handles
 	std::swap(CL_latticeImages[Front], CL_latticeImages[Back]);
