@@ -692,15 +692,20 @@ void Raycaster::resetLBM() {
 	auto he = height();
 	auto mesh = width() * height();
 	// Initial velocity is 0
-	h_if0.resize(getMeshSize());
 	h_type =  new bool[getMeshSize()];
 
+	h_if0.resize(getMeshSize());
 	h_if1234.resize(getNrOf_f());
 	h_if5678.resize(getNrOf_f());
 	
 	rho.resize(getMeshSize());
-	u.resize(getU_size() * DIM);
+	u.resize(getMeshSize());
 	
+	// Output
+	d_of0.resize(getMeshSize());
+	d_of1234.resize(getNrOf_f());
+	d_of5678.resize(getNrOf_f());
+	d_velocity.resize(getMeshSize());
 
 	cl_float2 u0 = { 0.f, 0.f };
 
@@ -778,11 +783,16 @@ void Raycaster::updateScene()
 		buffer<float4, 1> if5678_buffer{ reinterpret_cast<float4*>(h_if5678.data()), range<1> { getMeshSize()} };
 		buffer<bool, 1>  type_buffer{ h_type, range<1> {getMeshSize()} };
 
+		// Output
 		buffer<float, 1> of0_buffer{ d_of0.data(), range<1> {getMeshSize()} };
 		buffer<float4, 1> of1234_buffer{ reinterpret_cast<float4*>(d_of1234.data()), range<1> {getMeshSize()} };
 		buffer<float4, 1> of5678_buffer{ reinterpret_cast<float4*>(d_of5678.data()), range<1> { getMeshSize()} };
 		buffer<float2, 1> velocity_buffer{ reinterpret_cast<float2*>(d_velocity.data()), range<1> {getMeshSize()} };
 
+		// Vector with contants
+		buffer<int, 1> h_dirX_buffer{ h_dirX.data(), range<1> {h_dirX.size()} };
+		buffer<int, 1> h_dirY_buffer{ h_dirY.data(), range<1> {h_dirY.size()} };
+		buffer<float, 1> h_weigt_buffer{ w.data(), range<1> {w.size()} };
 
 
 
@@ -799,6 +809,10 @@ void Raycaster::updateScene()
 			auto of1234 = of1234_buffer.get_access<access::mode::discard_write>(cgh);
 			auto of5678 = of5678_buffer.get_access<access::mode::discard_write>(cgh);
 
+			// Vector with contants
+			auto dirX = h_dirX_buffer.get_access<access::mode::read>(cgh);
+			auto dirY = h_dirY_buffer.get_access<access::mode::read>(cgh);
+			auto weight = h_weigt_buffer.get_access<access::mode::read>(cgh);
 
 			auto old_lattice = latticeImages[Buffer::Front]->get_access<float4, access::mode::read>(cgh);
 			auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::write>(cgh);
@@ -812,7 +826,7 @@ void Raycaster::updateScene()
 			int screen_height = height();
 
 			cgh.parallel_for<kernels::Lbm>(range<2>{ old_lattice.get_range() },
-				[=, dirX = h_dirX, dirY = h_dirY, weight = w, om = omega, width = screen_width, height = screen_height](const item<2> i)
+				[=, /*dirX = h_dirX, dirY = h_dirY, weight = w,*/ om = omega, width = screen_width, height = screen_height](const item<2> i)
 			{
 
 				auto getPixelFromOldLattice = [=](int2 in) { return old_lattice.read(in, periodic); };

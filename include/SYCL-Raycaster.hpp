@@ -66,7 +66,7 @@ public:
     std::vector<float> w { 4.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0 };
 
     // Omega
-    const cl_float omega = 1.2f;
+    float omega = 1.2f;
     std::vector<float> rho;
     std::vector<cl_float2> u;
     std::vector<int> h_dirX { 0, 1, 0, -1,  0, 1, -1,  -1,  1};
@@ -79,7 +79,7 @@ public:
     std::vector<float> d_of0;
     std::vector<float> d_of1234;
     std::vector<float> d_of5678;
-    std::vector<float> d_velocity;
+    std::vector<cl::sycl::float2> d_velocity;
 
 
     bool *h_type;
