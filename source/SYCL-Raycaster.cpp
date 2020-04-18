@@ -5,6 +5,8 @@
 
 #include <SYCL-Raycaster.hpp>
 #include <glm/gtx/transform.hpp>
+
+#include <iterator>
 //#include "glm/ext.hpp"
 //#include "C:/Diplomamunka/vcpkg/installed/x64-windows/include/glm/ext.hpp"
 
@@ -755,6 +757,251 @@ float Raycaster::computefEq(cl_float weight, float dir[2], float rho,
 	return rho * weight * (1.0 + 3.0 * eu + 4.5 * eu * eu - 1.5 * u2);
 }
 
+void Raycaster::runOnCPU() {
+	using namespace cl::sycl;
+	auto wa = width();
+	auto ha = height();
+
+	// TEST
+	/*float4 f1234{ 1.11111 };
+	auto count = f1234.get_count();
+	float d[4] = { 1,2,3,4 };
+	std::vector<cl_float> data( d2, d2 + 4);
+
+	auto sum = std::accumulate(data.begin(), data.end(), 0);
+	auto first = (f1234.get_data())[0];
+	auto second = (f1234.get_data())[1];
+
+	f1234.x() = 0;
+	f1234.s0() = 1;
+	auto a = f1234.x() + f1234.y();
+	float4 f5678{ 0.0277777 };
+	float f0{ 4.44444 };
+	float4 temp = f1234 + f5678;
+	temp.lo() += temp.hi();
+	auto rho = temp.x() + temp.y();
+	rho += f0;*/
+	// END TEST
+
+	std::vector<float> if0{ h_if0 };
+	auto if1234_t{ reinterpret_cast<float4*>(h_if1234.data()) };
+	std::vector<float4> if1234{ if1234_t , if1234_t + h_if1234.size() / 4 };
+
+	auto if5678_t{ reinterpret_cast<float4*>(h_if5678.data()) };
+	std::vector<float4> if5678{ if5678_t , if5678_t + h_if5678.size() / 4 };
+
+	std::vector<bool>  type(h_type, h_type + width() * height());
+
+	// Output
+	std::vector<float> of0{ d_of0 };
+
+	auto of1234_t{ reinterpret_cast<float4*>(d_of1234.data()) };
+	std::vector<float4> of1234{ of1234_t , of1234_t + d_of1234.size() / 4 };
+
+	auto of5678_t{ reinterpret_cast<float4*>(d_of5678.data()) };
+	std::vector<float4> of5678{ of5678_t , of5678_t + d_of5678.size() / 4 };
+
+	//auto velocity_out_t{ reinterpret_cast<float2*>(d_velocity.data()) };
+	std::vector<float2> velocity_out{ d_velocity };
+
+	// Vector with contants
+	std::vector <int> dirX{ h_dirX };
+	std::vector <int> dirY{ h_dirY };
+	std::vector <float> weight{ w };
+
+	auto om = omega;
+
+	for (int y = 0; y < height(); y++) {
+		for (int x = 0; x < width(); x++) {
+
+			uint2 id(x, y);
+			//qDebug() << x << "\n";
+			uint pos = id.x() + width() * id.y();
+
+			// Read input distributions
+			float f0 = if0[pos];
+			float4 f1234 = if1234[pos];
+			float4 f5678 = if5678[pos];
+
+			float rho;	//Density
+			float2 u;	//Velocity
+
+			// Collide
+			//boundary
+			if (type[pos]) {
+				// Swap directions by swizzling
+				 // Swap directions by swizzling
+				f1234.x() = f1234.z();
+				f1234.y() = f1234.w();
+				f1234.z() = f1234.x();
+				f1234.w() = f1234.y();
+
+				f5678.x() = f5678.z();
+				f5678.y() = f5678.w();
+				f5678.z() = f5678.x();
+				f5678.w() = f5678.y();
+
+				rho = 0;
+				u = float2{ 0.f, 0.f };
+			}
+			// fluid
+			else
+			{
+				// Compute rho and u
+				// Rho is computed by doing a reduction on f
+				rho = f0 + f1234.x() + f1234.y() + f1234.z() + f1234.w() + f5678.x() + f5678.y() + f5678.z() + f5678.w();
+
+				// Compute velocity
+
+				// TODO: check if I use f1234.get_value(index) instead
+				u.x() = (f1234.x() * float(dirX[1]) + f1234.y() * float(dirX[2]) + f1234.z() * float(dirX[3]) + f1234.w() * float(dirX[4])
+					+ f5678.x() * float(dirX[5]) + f5678.y() * float(dirX[6]) + f5678.z() * float(dirX[7]) + f5678.w() * float(dirX[8])) / rho;
+
+				u.y() = (f1234.x() * float(dirY[1]) + f1234.y() * float(dirY[2]) + f1234.z() * float(dirY[3]) + f1234.w() * float(dirY[4])
+					+ f5678.x() * float(dirY[5]) + f5678.y() * float(dirY[6]) + f5678.z() * float(dirY[7]) + f5678.w() * float(dirY[8])) / rho;
+
+				float4 fEq1234;	// Stores feq 
+				float4 fEq5678;
+				float fEq0;
+
+				auto computefEq = [](float rho, float weight, float2 dir, float2 u) {
+					float u2 = dot(u, u);
+					float eu = dot(dir, u);
+					return rho * weight * (1.0f + (3.0f * eu) + (4.5f * eu * eu) - (1.5f * u2));
+
+				};
+
+				// Compute fEq
+				fEq0 = computefEq(rho, weight[0], float2{ 0, 0 }, u);
+				fEq1234.x() = computefEq(rho, weight[1], float2{ dirX[1], dirY[1] }, u);
+				fEq1234.y() = computefEq(rho, weight[2], float2{ dirX[2], dirY[2] }, u);
+				fEq1234.z() = computefEq(rho, weight[3], float2{ dirX[3], dirY[3] }, u);
+				fEq1234.w() = computefEq(rho, weight[4], float2{ dirX[4], dirY[4] }, u);
+				fEq5678.x() = computefEq(rho, weight[5], float2{ dirX[5], dirY[5] }, u);
+				fEq5678.y() = computefEq(rho, weight[6], float2{ dirX[6], dirY[6] }, u);
+				fEq5678.z() = computefEq(rho, weight[7], float2{ dirX[7], dirY[7] }, u);
+				fEq5678.w() = computefEq(rho, weight[8], float2{ dirX[8], dirY[8] }, u);
+
+				f0 = (1 - om) * f0 + om * fEq0;
+				f1234 = (1 - om) * f1234 + om * fEq1234;
+				f5678 = (1 - om) * f5678 + om * fEq5678;
+			}
+
+			velocity_out[pos] = u;
+
+			// Propagate
+			// New positions to write (Each thread will write 8 values)
+
+			int8 x8 = int8(id.x());
+			int8 y8 = int8(id.y());
+			int8 width8 = int8(width());
+
+			int8 nX = x8 + int8(dirX[1], dirX[2], dirX[3], dirX[4], dirX[5], dirX[6], dirX[7], dirX[8]);
+			int8 nY = y8 + int8(dirY[1], dirY[2], dirY[3], dirY[4], dirY[5], dirY[6], dirY[7], dirY[8]);
+			int8 nPos = nX + width8 * nY;
+
+			// Write center distribution to thread's location
+			//qDebug() << "of0" << " " << f0 << "\n";
+			of0[pos] = f0;
+
+			int t1 = id.x() < uint(width() - 1); // Not on Right boundary
+			int t4 = id.y() > uint(0);                      // Not on Upper boundary
+			int t3 = id.x() > uint(0);                      // Not on Left boundary
+			int t2 = id.y() < uint(height() - 1); // Not on lower boundary
+
+			// Propagate to right cell
+			if (t1) {
+				//qDebug() << "of1234" << " " << f1234.x() << "\n";
+				of1234[nPos.s0()].x() = f1234.x();
+			}
+
+			// Propagate to Lower cell
+			if (t2)
+				of1234[nPos.s1()].y() = f1234.y();
+
+			// Propagate to left cell
+			if (t3)
+				of1234[nPos.s2()].z() = f1234.z();
+
+			// Propagate to Upper cell
+			if (t4)
+				of1234[nPos.s3()].w() = f1234.w();
+
+			// Propagate to Lower-Right cell
+			if (t1 && t2)
+				of5678[nPos.s4()].x() = f5678.x();
+
+			// Propogate to Lower-Left cell
+			if (t2 && t3)
+				of5678[nPos.s5()].y() = f5678.y();
+
+			// Propagate to Upper-Left cell
+			if (t3 && t4)
+				of5678[nPos.s6()].z() = f5678.z();
+
+			// Propagate to Upper-Right cell
+			if (t4 && t1)
+				of5678[nPos.s7()].w() = f5678.w();
+
+		}
+	}
+
+	testOutputs(of0, of1234, of5678);
+	/*float c1 = 1.11111;
+	for (float4 a : of1234) {
+		auto e = 0.0001f;
+		auto result = (float)a.x() - c1;
+		auto b = result > e;
+		if (((float)a.x() - c1) > e || ((float)a.y() - c1) > e || ((float)a.z() - c1) > e || ((float)a.w() - c1) > e) {
+			break;
+		}
+	}*/
+
+	/*std::ofstream of0_file("of1234.txt");
+	std::ostream_iterator<float4> output_it(of0_file, " ");
+	std::copy(of1234.begin(), of1234.end(), output_it);
+	of0_file.close();
+
+	std::ofstream of0_file2("of5678.txt");
+	std::ostream_iterator<float4> output_it2(of0_file2, " ");
+	std::copy(of5678.begin(), of5678.end(), output_it2);
+	of0_file2.close();*/
+}
+void Raycaster::testOutputs(std::vector<float> f0, std::vector<cl::sycl::float4> f1234, std::vector<cl::sycl::float4> f5678) {
+	
+	auto e = 0.0001f;
+	float c1 = 4.44444;
+
+	bool flag0 = true;
+	bool flag1234 = true;
+	bool flag5678 = true;
+	for (auto a : f0) {
+		if (((float)a - c1) > e ) {
+			flag0 = false;
+			break;
+		}
+	}
+
+	float c2 = 1.11111;
+	for (auto a : f1234) {
+		if (((float)a.x() - c2) > e || ((float)a.y() - c2) > e || ((float)a.z() - c2) > e || ((float)a.w() - c2) > e) {
+			break;
+			flag1234 = false;
+		}
+	}
+
+	float c3 = 0.27777;
+	for (auto a : f5678) {
+		if (((float)a.x() - c3) > e || ((float)a.y() - c3) > e || ((float)a.z() - c3) > e || ((float)a.w() - c3) > e) {
+			flag5678 = false;
+		}
+	}
+
+	if (flag0 && flag1234 && flag5678)
+		qDebug() << "Test passed" << "\n";
+	else
+		qDebug() << "Test failed" << "\n";
+}
 
 void Raycaster::updateScene()
 {
@@ -775,6 +1022,8 @@ void Raycaster::updateScene()
 	CLcommandqueues().at(dev_id).enqueueAcquireGLObjects(&interop_resources, nullptr, &acquire);
 	using namespace cl::sycl;
 
+	//runOnCPU();
+
 	try
 	{
 		
@@ -787,7 +1036,7 @@ void Raycaster::updateScene()
 		buffer<float, 1> of0_buffer{ d_of0.data(), range<1> {getMeshSize()} };
 		buffer<float4, 1> of1234_buffer{ reinterpret_cast<float4*>(d_of1234.data()), range<1> {getMeshSize()} };
 		buffer<float4, 1> of5678_buffer{ reinterpret_cast<float4*>(d_of5678.data()), range<1> { getMeshSize()} };
-		buffer<float2, 1> velocity_buffer{ reinterpret_cast<float2*>(d_velocity.data()), range<1> {getMeshSize()} };
+		buffer<float2, 1> velocity_buffer{ d_velocity.data(), range<1> {getMeshSize()} };
 
 		// Vector with contants
 		buffer<int, 1> h_dirX_buffer{ h_dirX.data(), range<1> {h_dirX.size()} };
@@ -826,13 +1075,13 @@ void Raycaster::updateScene()
 			int screen_height = height();
 
 			cgh.parallel_for<kernels::Lbm>(range<2>{ old_lattice.get_range() },
-				[=, /*dirX = h_dirX, dirY = h_dirY, weight = w,*/ om = omega, width = screen_width, height = screen_height](const item<2> i)
+				[=, om = omega, width = screen_width, height = screen_height](const item<2> i)
 			{
 
 				auto getPixelFromOldLattice = [=](int2 in) { return old_lattice.read(in, periodic); };
 				auto setPixelForNewLattice = [=](float4 in) { new_lattice.write((int2)i.get_id(), in); };
 
-				uint2 id = (uint2)(i.get_id()[0], (i.get_id()[1]));
+				uint2 id(i.get_id()[0], (i.get_id()[1]));
 				uint pos = id.x() + width * id.y();
 
 				// Read input distributions
@@ -848,7 +1097,7 @@ void Raycaster::updateScene()
 				if (type[pos]) {
 					// Swap directions by swizzling
 					 // Swap directions by swizzling
-					/*f1234.x() = f1234.z();
+					f1234.x() = f1234.z();
 					f1234.y() = f1234.w();
 					f1234.z() = f1234.x();
 					f1234.w() = f1234.y();
@@ -856,32 +1105,26 @@ void Raycaster::updateScene()
 					f5678.x() = f5678.z();
 					f5678.y() = f5678.w();
 					f5678.z() = f5678.x();
-					f5678.w() = f5678.y();*/
+					f5678.w() = f5678.y();
 
 					rho = 0;
-					u = (float2)(0.f, 0.f);
+					u = float2{ 0.f, 0.f };
 				} 
 				// fluid
 				else 
 				{
 					// Compute rho and u
 					// Rho is computed by doing a reduction on f
-					float4 temp = f1234 + f5678;
-					temp.lo() += temp.hi();
-					rho = temp.x() + temp.y();
-					rho += f0;
+					rho = f0 + f1234.x() + f1234.y() + f1234.z() + f1234.w() + f5678.x() + f5678.y() + f5678.z() + f5678.w();
 
 					// Compute velocity
-					//float x = f1234.x() * float(1.0);
 
 					// TODO: check if I use f1234.get_value(index) instead
 					u.x() = (f1234.x() * float(dirX[1])  + f1234.y() * float(dirX[2]) + f1234.z() * float(dirX[3]) + f1234.w() * float(dirX[4])
-						+ f5678.x() * float(dirX[5]) +
-						f5678.y() * float(dirX[6]) + f5678.z() * float(dirX[7]) + f5678.w() * float(dirX[8])  ) / rho;
+						    + f5678.x() * float(dirX[5]) + f5678.y() * float(dirX[6]) + f5678.z() * float(dirX[7]) + f5678.w() * float(dirX[8])  ) / rho;
 
 					u.y() = (f1234.x() * float(dirY[1]) + f1234.y() * float(dirY[2]) + f1234.z() * float(dirY[3]) + f1234.w() * float(dirY[4])
-						+ f5678.x() * float(dirY[5]) +
-						f5678.y() * float(dirY[6]) + f5678.z() * float(dirY[7]) + f5678.w() * float(dirY[8])) / rho;
+						   + f5678.x() * float(dirY[5]) + f5678.y() * float(dirY[6]) + f5678.z() * float(dirY[7]) + f5678.w() * float(dirY[8])) / rho;
 
 					float4 fEq1234;	// Stores feq 
 					float4 fEq5678;
@@ -890,20 +1133,20 @@ void Raycaster::updateScene()
 					auto computefEq = [](float rho, float weight, float2 dir, float2 u) {
 						float u2 = dot(u, u);
 						float eu = dot(dir, u);
-						return rho * weight * (1.0f + 3.0f * eu + 4.5f * eu * eu - 1.5f * u2);
+						return rho * weight * (1.0f + (3.0f * eu) + (4.5f * eu * eu) - (1.5f * u2));
 
 					};
 
 					// Compute fEq
-					fEq0 = computefEq(rho, weight[0], (float2)(0, 0), u);
-					fEq1234.x() = computefEq(rho, weight[1], (float2)(dirX[1], dirY[1]), u);
-					fEq1234.y() = computefEq(rho, weight[2], (float2)(dirX[2], dirY[2]), u);
-					fEq1234.z() = computefEq(rho, weight[3], (float2)(dirX[3], dirY[3]), u);
-					fEq1234.w() = computefEq(rho, weight[4], (float2)(dirX[4], dirY[4]), u);
-					fEq5678.x() = computefEq(rho, weight[5], (float2)(dirX[5], dirY[5]), u);
-					fEq5678.y() = computefEq(rho, weight[6], (float2)(dirX[6], dirY[6]), u);
-					fEq5678.z() = computefEq(rho, weight[7], (float2)(dirX[7], dirY[7]), u);
-					fEq5678.w() = computefEq(rho, weight[8], (float2)(dirX[8], dirY[8]), u);
+					fEq0 = computefEq(rho, weight[0], float2{0, 0 }, u);
+					fEq1234.x() = computefEq(rho, weight[1], float2{dirX[1], dirY[1] }, u);
+					fEq1234.y() = computefEq(rho, weight[2], float2{dirX[2], dirY[2] }, u);
+					fEq1234.z() = computefEq(rho, weight[3], float2{dirX[3], dirY[3] }, u);
+					fEq1234.w() = computefEq(rho, weight[4], float2{dirX[4], dirY[4] }, u);
+					fEq5678.x() = computefEq(rho, weight[5], float2{dirX[5], dirY[5] }, u);
+					fEq5678.y() = computefEq(rho, weight[6], float2{dirX[6], dirY[6] }, u);
+					fEq5678.z() = computefEq(rho, weight[7], float2{dirX[7], dirY[7] }, u);
+					fEq5678.w() = computefEq(rho, weight[8], float2{dirX[8], dirY[8] }, u);
 
 					f0 =	(1 - om) * f0 + om * fEq0;
 					f1234 = (1 - om) * f1234 + om * fEq1234;
@@ -995,7 +1238,12 @@ void Raycaster::updateScene()
 	else release.wait();
 
 	// TEST
-	qDebug() << d_velocity.size() << "\n";;
+	auto of1234_t{ reinterpret_cast<float4*>(d_of1234.data()) };
+	std::vector<float4> of1234{ of1234_t , of1234_t + d_of1234.size() / 4 };
+
+	auto of5678_t{ reinterpret_cast<float4*>(d_of5678.data()) };
+	std::vector<float4> of5678{ of5678_t , of5678_t + d_of5678.size() / 4 };
+	testOutputs(d_of0, of1234, of5678);
 	// END TEST
 
 	// Swap front and back buffer handles

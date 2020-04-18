@@ -93,6 +93,9 @@ public:
     size_t N = 4;
     size_t DIM = 2;
 
+    void runOnCPU();
+    void testOutputs(std::vector<float> f0, std::vector<cl::sycl::float4> f1234, std::vector<cl::sycl::float4> f5678);
+
     // END LBM
 
 private:
