@@ -1042,6 +1042,8 @@ void Raycaster::updateScene()
 		buffer<int, 1> h_dirX_buffer{ h_dirX.data(), range<1> {h_dirX.size()} };
 		buffer<int, 1> h_dirY_buffer{ h_dirY.data(), range<1> {h_dirY.size()} };
 		buffer<float, 1> h_weigt_buffer{ w.data(), range<1> {w.size()} };
+		buffer<float4, 1> h_colorScale_mrgb_buffer{ colorScale_magnitude_rgb.data(), range<1> {colorScale_magnitude_rgb.size()} };
+
 
 
 
@@ -1062,6 +1064,7 @@ void Raycaster::updateScene()
 			auto dirX = h_dirX_buffer.get_access<access::mode::read>(cgh);
 			auto dirY = h_dirY_buffer.get_access<access::mode::read>(cgh);
 			auto weight = h_weigt_buffer.get_access<access::mode::read>(cgh);
+			auto colorScale = h_colorScale_mrgb_buffer.get_access<access::mode::read>(cgh);
 
 			auto old_lattice = latticeImages[Buffer::Front]->get_access<float4, access::mode::read>(cgh);
 			auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::write>(cgh);
@@ -1206,12 +1209,43 @@ void Raycaster::updateScene()
 				if (t4 && t1)
 					of5678[nPos.s7()].w() = f5678.w();
 
-				// START LBM
-				/*auto isBoundary = []() {};
-				auto isFluid = []() {};
-				auto collide = []() {};
-				auto streamToNeighbours = []() {};*/
-				// END LBM
+				auto getColor = [](float2 inVelocity, bool isBoundary, std::vector<float4> scale) {
+					float4 color = { 0.f, 0.f, 0.f, 1.f };
+
+					if (isBoundary) {
+						color = { 0.f, 0.f, 0.f, 1.f };
+					}
+					else {
+						auto c = scale.size();
+						auto velocityMangitude = cl::sycl::length(inVelocity);
+
+						int i = 0;
+						float w;
+
+						if (velocityMangitude < scale[0].w())
+						{
+							color = scale[0];
+						}
+						else if (velocityMangitude > scale[c - 1].w())
+						{
+							color = scale[c - 1];
+						}
+						else
+						{
+							for (i = 1; i <= c; i++)
+								if (velocityMangitude >= (scale[i - 1].w()) && (velocityMangitude < scale[i].w()))
+									break;
+
+							// linear interpolation
+							w = (velocityMangitude - scale[i - 1].w()) / (scale[i].w() - scale[i - 1].w());
+							color = (1 - w) * scale[i - 1] + w * scale[i];
+						}
+					}
+					// set alpha to 1;
+					color.w() = 1.f;
+
+					return color * 255;
+				};
 			});
 		});
 	}
