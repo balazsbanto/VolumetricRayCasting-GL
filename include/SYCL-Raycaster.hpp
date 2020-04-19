@@ -60,22 +60,23 @@ public:
 
     void resetLBM();
     // Directions
-    float e[9][2] = { {0,0}, {1,0}, {0,1}, {-1,0}, {0,-1}, {1,1}, {-1,1}, {-1,-1}, {1,-1} };
-
     // Weights
     std::vector<float> w { 4.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0 };
    /* std::vector<cl::sycl::float4> colorScale_magnitude_rgb{ cl::sycl::float4{0.0, 0, 0, 0}, cl::sycl::float4{0, 0, 1, 0.2}, cl::sycl::float4{0, 1, 1, 0.4},
         cl::sycl::float4{0, 1, 0, 0.8}, cl::sycl::float4{1, 1, 0, 1.6}, cl::sycl::float4{1, 0, 0, 3.2} };*/
 
-    // Omega
+   // constants
     float omega = 1.2f;
     std::vector<float> rho;
-    std::vector<cl_float2> u;
+    std::vector<cl::sycl::float2> u;
     std::vector<int> h_dirX { 0, 1, 0, -1,  0, 1, -1,  -1,  1};
     std::vector<int> h_dirY { 0, 0, 1,  0, -1, 1,  1,  -1, -1};
+    
+    // host vectors
     std::vector<float> h_if0;
     std::vector<float> h_if1234;
     std::vector<float> h_if5678;
+    bool* h_type;
 
     // Device outputs
     std::vector<float> d_of0;
@@ -83,20 +84,18 @@ public:
     std::vector<float> d_of5678;
     std::vector<cl::sycl::float2> d_velocity;
 
-
-    bool *h_type;
-
     // helper function
     size_t getMeshSize();
     size_t getNrOf_f();
     size_t getU_size();
-    float computefEq(cl_float weight, float dir[2], float rho,
-        cl_float2 velocity);
+    float computefEq(float weight, cl::sycl::float2 dir, float rho, cl::sycl::float2 velocity);
+
     size_t N = 4;
     size_t DIM = 2;
 
     void runOnCPU();
     void testOutputs(std::vector<float> f0, std::vector<cl::sycl::float4> f1234, std::vector<cl::sycl::float4> f5678);
+    void setDistributions(int pos, float density, cl::sycl::float2 velocity);
 
     // END LBM
 

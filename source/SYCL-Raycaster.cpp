@@ -257,7 +257,7 @@ bool Raycaster::event(QEvent *event_in)
 	case QEvent::MouseMove:
 		mouse_event = static_cast<QMouseEvent*>(event_in);
 
-		if ((mouse_event->buttons() & Qt::MouseButton::RightButton) && // If RMB is pressed AND
+		if ((mouse_event->buttons() & Qt::MouseButton::LeftButton) && // If RMB is pressed AND
 			(mousePos != mouse_event->pos()))                          // Mouse has moved 
 			mouseDrag(mouse_event);
 
@@ -281,9 +281,38 @@ bool Raycaster::event(QEvent *event_in)
 // Input handler function
 void Raycaster::mouseDrag(QMouseEvent* event_in)
 {
+
+	using namespace cl::sycl;
+	// TODO: check how the sign in the y direction works
 	phi = (event_in->x() - mousePos.x());
 	theta = (event_in->y() - mousePos.y());
 
+	// check here which kernel we are running. Run this only in case of LBM
+	if (true) {
+		float2 dragVelocity{ event_in->x() - mousePos.x(),  mousePos.y() - event_in->y() };
+		auto magnitude = length(dragVelocity);
+		dragVelocity /= (1 + 2 * magnitude);
+
+		// Set new distributions
+		float rho;
+
+		int x = event_in->x();
+		int y = height() - 1 - event_in->y();
+		int pos = x + width() * y;
+
+		// Calculate density from input distribution
+		rho = h_if0[pos] + h_if1234[pos * 4 + 0] + h_if1234[pos * 4 + 1] +
+			h_if1234[pos * 4 + 2] + h_if1234[pos * 4 + 3] +
+			h_if5678[pos * 4 + 0] + h_if5678[pos * 4 + 1] + h_if5678[pos * 4 + 2] +
+			h_if5678[pos * 4 + 3];
+
+		// Increase the speed by input speed
+		d_velocity[pos] += dragVelocity;
+		float2 newVel = d_velocity[pos];
+
+		// Calculate new distribution based on input speed
+		setDistributions(pos, rho, newVel);
+	}
 	qDebug() << "event_in: " << event_in->x() << " " << event_in->y();
 	qDebug() << "mousePos: " << mousePos.x() << " " <<  mousePos.y() ;
 	qDebug() << "phi: " << phi ;
@@ -292,6 +321,18 @@ void Raycaster::mouseDrag(QMouseEvent* event_in)
 	needMatrixReset = true;
 
 	if (!getAnimating()) renderNow();
+}
+
+void Raycaster::setDistributions(int pos, float density, cl::sycl::float2 velocity) {
+	h_if0[pos] =			computefEq(w[0], cl::sycl::float2{ h_dirX[0], h_dirY[0] }, density, velocity);
+	h_if1234[pos * 4 + 0] = computefEq(w[1], cl::sycl::float2{ h_dirX[1], h_dirY[1] }, density, velocity);
+	h_if1234[pos * 4 + 1] = computefEq(w[2], cl::sycl::float2{ h_dirX[2], h_dirY[2] }, density, velocity);
+	h_if1234[pos * 4 + 2] = computefEq(w[3], cl::sycl::float2{ h_dirX[3], h_dirY[3] }, density, velocity);
+	h_if1234[pos * 4 + 3] = computefEq(w[4], cl::sycl::float2{ h_dirX[4], h_dirY[4] }, density, velocity);
+	h_if5678[pos * 4 + 0] = computefEq(w[5], cl::sycl::float2{ h_dirX[5], h_dirY[5] }, density, velocity);
+	h_if5678[pos * 4 + 1] = computefEq(w[6], cl::sycl::float2{ h_dirX[6], h_dirY[6] }, density, velocity);
+	h_if5678[pos * 4 + 2] = computefEq(w[7], cl::sycl::float2{ h_dirX[7], h_dirY[7] }, density, velocity);
+	h_if5678[pos * 4 + 3] = computefEq(w[8], cl::sycl::float2{ h_dirX[8], h_dirY[8] }, density, velocity);
 }
 
 void Raycaster::setVRMatrices() {
@@ -690,6 +731,7 @@ size_t Raycaster::getU_size() {
 }
 
 void Raycaster::resetLBM() {
+	using namespace cl::sycl;
 	auto wi = width();
 	auto he = height();
 	auto mesh = width() * height();
@@ -709,7 +751,7 @@ void Raycaster::resetLBM() {
 	d_of5678.resize(getNrOf_f());
 	d_velocity.resize(getMeshSize());
 
-	cl_float2 u0 = { 0.f, 0.f };
+	float2 u0 = { 0.f, 0.f };
 
 	for (int y = 0; y < height(); y++) {
 		for (int x = 0; x < width(); x++) {
@@ -720,16 +762,7 @@ void Raycaster::resetLBM() {
 			// Initialize the velocity buffer
 			u[pos] = u0;
 
-			h_if0[pos] = computefEq(w[0], e[0], den, u0);
-			h_if1234[pos * 4 + 0] = computefEq(w[1], e[1], den, u0);
-			h_if1234[pos * 4 + 1] = computefEq(w[2], e[2], den, u0);
-			h_if1234[pos * 4 + 2] = computefEq(w[3], e[3], den, u0);
-			h_if1234[pos * 4 + 3] = computefEq(w[4], e[4], den, u0);
-
-			h_if5678[pos * 4 + 0] = computefEq(w[5], e[5], den, u0);
-			h_if5678[pos * 4 + 1] = computefEq(w[6], e[6], den, u0);
-			h_if5678[pos * 4 + 2] = computefEq(w[7], e[7], den, u0);
-			h_if5678[pos * 4 + 3] = computefEq(w[8], e[8], den, u0);
+			setDistributions(pos, den, u0);
 
 			// Initialize boundary cells
 			if (x == 0 || x == (width() - 1) || y == 0 || y == (height() - 1))
@@ -748,12 +781,10 @@ void Raycaster::resetLBM() {
 	
 }
 
-float Raycaster::computefEq(cl_float weight, float dir[2], float rho,
-	cl_float2 velocity) {
+float Raycaster::computefEq(float weight, cl::sycl::float2 dir, float rho, cl::sycl::float2 velocity) {
 
-	float u2 = velocity.s[0] * velocity.s[0] + velocity.s[1] * velocity.s[1];
-	float eu = dir[0] * velocity.s[0] + dir[1] * velocity.s[1];
-
+	float u2 = cl::sycl::dot(velocity, velocity);
+	float eu = cl::sycl::dot(dir, velocity);  
 	return rho * weight * (1.0 + 3.0 * eu + 4.5 * eu * eu - 1.5 * u2);
 }
 
@@ -1313,6 +1344,10 @@ void Raycaster::updateScene()
 	std::swap(CL_latticeImages[Front], CL_latticeImages[Back]);
 	std::swap(latticeImages[Front], latticeImages[Back]);
 	std::swap(texs[Front], texs[Back]);
+
+	std::swap(h_if0, d_of0);
+	std::swap(h_if1234, d_of1234);
+	std::swap(h_if5678, d_of5678);
 
 	imageDrawn = false;
 }
