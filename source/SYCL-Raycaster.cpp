@@ -1042,7 +1042,7 @@ void Raycaster::updateScene()
 		buffer<int, 1> h_dirX_buffer{ h_dirX.data(), range<1> {h_dirX.size()} };
 		buffer<int, 1> h_dirY_buffer{ h_dirY.data(), range<1> {h_dirY.size()} };
 		buffer<float, 1> h_weigt_buffer{ w.data(), range<1> {w.size()} };
-		buffer<float4, 1> h_colorScale_mrgb_buffer{ colorScale_magnitude_rgb.data(), range<1> {colorScale_magnitude_rgb.size()} };
+		//buffer<float4, 1> h_colorScale_mrgb_buffer{ colorScale_magnitude_rgb.data(), range<1> {colorScale_magnitude_rgb.size()} };
 
 
 
@@ -1064,7 +1064,7 @@ void Raycaster::updateScene()
 			auto dirX = h_dirX_buffer.get_access<access::mode::read>(cgh);
 			auto dirY = h_dirY_buffer.get_access<access::mode::read>(cgh);
 			auto weight = h_weigt_buffer.get_access<access::mode::read>(cgh);
-			auto colorScale = h_colorScale_mrgb_buffer.get_access<access::mode::read>(cgh);
+			//auto colorScale = h_colorScale_mrgb_buffer.get_access<access::mode::read>(cgh);
 
 			auto old_lattice = latticeImages[Buffer::Front]->get_access<float4, access::mode::read>(cgh);
 			auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::write>(cgh);
@@ -1209,36 +1209,63 @@ void Raycaster::updateScene()
 				if (t4 && t1)
 					of5678[nPos.s7()].w() = f5678.w();
 
-				auto getColor = [](float2 inVelocity, bool isBoundary, std::vector<float4> scale) {
+				auto getColor = [](float2 inVelocity, bool isBoundary){
 					float4 color = { 0.f, 0.f, 0.f, 1.f };
+
+					// creat a color scale
+					float4 color1{ 0, 0, 0, 0.0 };
+					float4 color2{ 0, 0, 1, 0.2 };
+					float4 color3{ 0, 1, 1, 0.4 };
+					float4 color4{ 0, 1, 0, 0.8 };
+					float4 color5{ 1, 1, 0, 1.6 };
+					float4 color6{ 1, 0, 0, 3.2 };
 
 					if (isBoundary) {
 						color = { 0.f, 0.f, 0.f, 1.f };
 					}
 					else {
-						auto c = scale.size();
 						auto velocityMangitude = cl::sycl::length(inVelocity);
 
 						int i = 0;
 						float w;
 
-						if (velocityMangitude < scale[0].w())
+						if (velocityMangitude < color1.w())
 						{
-							color = scale[0];
+							color = color1;
 						}
-						else if (velocityMangitude > scale[c - 1].w())
+						else if (velocityMangitude >= color6.w())
 						{
-							color = scale[c - 1];
+							color = color6;
 						}
 						else
 						{
-							for (i = 1; i <= c; i++)
-								if (velocityMangitude >= (scale[i - 1].w()) && (velocityMangitude < scale[i].w()))
-									break;
-
+							float4 colorBoundaryStart;
+							float4 colorBoundaryEnd;
+							if ((float)color1.w() <= velocityMangitude && velocityMangitude < color2.w()) {
+								colorBoundaryStart = color1;
+								colorBoundaryEnd = color2;
+							}
+							else if ((float)color2.w() <= velocityMangitude && velocityMangitude < color3.w()) {
+								colorBoundaryStart = color2;
+								colorBoundaryEnd = color3;
+							
+							}
+							else if ((float)color3.w() <= velocityMangitude && velocityMangitude < color4.w()) {
+								colorBoundaryStart = color3;
+								colorBoundaryEnd = color4;
+							}
+							else if ((float)color4.w() <= velocityMangitude && velocityMangitude < color5.w()) {
+								colorBoundaryStart = color4;
+								colorBoundaryEnd = color5;
+							}
+							else if ((float)color5.w() <= velocityMangitude && velocityMangitude < color6.w()) {
+								colorBoundaryStart = color5;
+								colorBoundaryEnd = color6;
+							}
+							
 							// linear interpolation
-							w = (velocityMangitude - scale[i - 1].w()) / (scale[i].w() - scale[i - 1].w());
-							color = (1 - w) * scale[i - 1] + w * scale[i];
+							w = (velocityMangitude - colorBoundaryStart.w()) / (colorBoundaryEnd.w() - colorBoundaryStart.w());
+							color = (1 - w) * colorBoundaryStart + w * colorBoundaryEnd;
 						}
 					}
 					// set alpha to 1;
@@ -1246,6 +1273,8 @@ void Raycaster::updateScene()
 
 					return color * 255;
 				};
+
+				setPixelForNewLattice(getColor(u, type[pos]));
 			});
 		});
 	}

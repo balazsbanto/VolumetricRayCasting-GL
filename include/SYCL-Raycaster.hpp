@@ -64,8 +64,8 @@ public:
 
     // Weights
     std::vector<float> w { 4.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0 };
-    std::vector<cl::sycl::float4> colorScale_magnitude_rgb{ cl::sycl::float4{0.0, 0, 0, 0}, cl::sycl::float4{0, 0, 1, 0.2}, cl::sycl::float4{0, 1, 1, 0.4},
-        cl::sycl::float4{0, 1, 0, 0.8}, cl::sycl::float4{1, 1, 0, 1.6}, cl::sycl::float4{1, 0, 0, 3.2} };
+   /* std::vector<cl::sycl::float4> colorScale_magnitude_rgb{ cl::sycl::float4{0.0, 0, 0, 0}, cl::sycl::float4{0, 0, 1, 0.2}, cl::sycl::float4{0, 1, 1, 0.4},
+        cl::sycl::float4{0, 1, 0, 0.8}, cl::sycl::float4{1, 1, 0, 1.6}, cl::sycl::float4{1, 0, 0, 3.2} };*/
 
     // Omega
     float omega = 1.2f;
