@@ -283,6 +283,8 @@ void Raycaster::mouseDrag(QMouseEvent* event_in)
 {
 
 	using namespace cl::sycl;
+	qDebug() << "evenX " << event_in->x() << "oldX " << mousePos.x() << "\n";
+	qDebug() << "evenY " << event_in->y() << "oldY " << mousePos.y() << "\n";
 	// TODO: check how the sign in the y direction works
 	phi = (event_in->x() - mousePos.x());
 	theta = (event_in->y() - mousePos.y());
@@ -313,10 +315,10 @@ void Raycaster::mouseDrag(QMouseEvent* event_in)
 		// Calculate new distribution based on input speed
 		setDistributions(pos, rho, newVel);
 	}
-	qDebug() << "event_in: " << event_in->x() << " " << event_in->y();
+	/*qDebug() << "event_in: " << event_in->x() << " " << event_in->y();
 	qDebug() << "mousePos: " << mousePos.x() << " " <<  mousePos.y() ;
 	qDebug() << "phi: " << phi ;
-	qDebug() << "theta: " << theta;
+	qDebug() << "theta: " << theta;*/
 	
 	needMatrixReset = true;
 
@@ -779,6 +781,26 @@ void Raycaster::resetLBM() {
 		}
 	}
 	
+	initLbmBuffers();
+}
+
+void Raycaster::initLbmBuffers(){
+	using namespace cl::sycl;
+	if0_buffer = buffer<float, 1>{ h_if0.data(), range<1> {getMeshSize()} };
+	if1234_buffer = buffer<float4, 1>{ reinterpret_cast<float4*>(h_if1234.data()), range<1> {getMeshSize()} };
+	if5678_buffer = buffer<float4, 1>{ reinterpret_cast<float4*>(h_if5678.data()), range<1> { getMeshSize()} };
+	type_buffer = buffer<bool, 1>{ h_type, range<1> {getMeshSize()} };
+
+	// Output
+	of0_buffer = buffer<float, 1>{ d_of0.data(), range<1> {getMeshSize()} };
+	of1234_buffer = buffer<float4, 1>{ reinterpret_cast<float4*>(d_of1234.data()), range<1> {getMeshSize()} };
+	of5678_buffer = buffer<float4, 1>{ reinterpret_cast<float4*>(d_of5678.data()), range<1> { getMeshSize()} };
+	velocity_buffer = buffer<float2, 1>{ d_velocity.data(), range<1> {getMeshSize()} };
+
+	// Vector with contants
+	h_dirX_buffer = buffer<int, 1>{ h_dirX.data(), range<1> {h_dirX.size()} };
+	h_dirY_buffer = buffer<int, 1>{ h_dirY.data(), range<1> {h_dirY.size()} };
+	h_weigt_buffer = buffer<float, 1>{ w.data(), range<1> {w.size()} };
 }
 
 float Raycaster::computefEq(float weight, cl::sycl::float2 dir, float rho, cl::sycl::float2 velocity) {
@@ -1057,27 +1079,6 @@ void Raycaster::updateScene()
 
 	try
 	{
-		
-		buffer<float, 1> if0_buffer { h_if0.data(), range<1> {getMeshSize()} };
-		buffer<float4, 1> if1234_buffer { reinterpret_cast<float4*>(h_if1234.data()), range<1> {getMeshSize()} };
-		buffer<float4, 1> if5678_buffer{ reinterpret_cast<float4*>(h_if5678.data()), range<1> { getMeshSize()} };
-		buffer<bool, 1>  type_buffer{ h_type, range<1> {getMeshSize()} };
-
-		// Output
-		buffer<float, 1> of0_buffer{ d_of0.data(), range<1> {getMeshSize()} };
-		buffer<float4, 1> of1234_buffer{ reinterpret_cast<float4*>(d_of1234.data()), range<1> {getMeshSize()} };
-		buffer<float4, 1> of5678_buffer{ reinterpret_cast<float4*>(d_of5678.data()), range<1> { getMeshSize()} };
-		buffer<float2, 1> velocity_buffer{ d_velocity.data(), range<1> {getMeshSize()} };
-
-		// Vector with contants
-		buffer<int, 1> h_dirX_buffer{ h_dirX.data(), range<1> {h_dirX.size()} };
-		buffer<int, 1> h_dirY_buffer{ h_dirY.data(), range<1> {h_dirY.size()} };
-		buffer<float, 1> h_weigt_buffer{ w.data(), range<1> {w.size()} };
-		//buffer<float4, 1> h_colorScale_mrgb_buffer{ colorScale_magnitude_rgb.data(), range<1> {colorScale_magnitude_rgb.size()} };
-
-
-
-
 		compute_queue.submit([&](cl::sycl::handler& cgh)
 		{
 
@@ -1306,6 +1307,7 @@ void Raycaster::updateScene()
 				};
 
 				setPixelForNewLattice(getColor(u, type[pos]));
+
 			});
 		});
 	}
@@ -1332,12 +1334,12 @@ void Raycaster::updateScene()
 	else release.wait();
 
 	// TEST
-	auto of1234_t{ reinterpret_cast<float4*>(d_of1234.data()) };
+	/*auto of1234_t{ reinterpret_cast<float4*>(d_of1234.data()) };
 	std::vector<float4> of1234{ of1234_t , of1234_t + d_of1234.size() / 4 };
 
 	auto of5678_t{ reinterpret_cast<float4*>(d_of5678.data()) };
-	std::vector<float4> of5678{ of5678_t , of5678_t + d_of5678.size() / 4 };
-	testOutputs(d_of0, of1234, of5678);
+	std::vector<float4> of5678{ of5678_t , of5678_t + d_of5678.size() / 4 };*/
+	//testOutputs(d_of0, of1234, of5678);
 	// END TEST
 
 	// Swap front and back buffer handles
@@ -1348,6 +1350,11 @@ void Raycaster::updateScene()
 	std::swap(h_if0, d_of0);
 	std::swap(h_if1234, d_of1234);
 	std::swap(h_if5678, d_of5678);
+
+	// TEST swaps
+	std::swap(if0_buffer, of0_buffer);
+	std::swap(if1234_buffer, of1234_buffer);
+	std::swap(if5678_buffer, of5678_buffer);
 
 	imageDrawn = false;
 }

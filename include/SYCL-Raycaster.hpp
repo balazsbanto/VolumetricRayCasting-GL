@@ -84,6 +84,23 @@ public:
     std::vector<float> d_of5678;
     std::vector<cl::sycl::float2> d_velocity;
 
+    // Input buffers
+    cl::sycl::buffer<float, 1> if0_buffer;
+    cl::sycl::buffer<cl::sycl::float4, 1> if1234_buffer;
+    cl::sycl::buffer<cl::sycl::float4, 1> if5678_buffer;
+    cl::sycl::buffer<bool, 1>  type_buffer;
+
+    // Output buffers
+    cl::sycl::buffer<float, 1> of0_buffer;
+    cl::sycl::buffer<cl::sycl::float4, 1> of1234_buffer;
+    cl::sycl::buffer<cl::sycl::float4, 1> of5678_buffer;
+    cl::sycl::buffer<cl::sycl::float2, 1> velocity_buffer;
+
+    // Constant data buffers
+    cl::sycl::buffer<int, 1> h_dirX_buffer;
+    cl::sycl::buffer<int, 1> h_dirY_buffer;
+    cl::sycl::buffer<float, 1> h_weigt_buffer;
+
     // helper function
     size_t getMeshSize();
     size_t getNrOf_f();
@@ -95,7 +112,8 @@ public:
 
     void runOnCPU();
     void testOutputs(std::vector<float> f0, std::vector<cl::sycl::float4> f1234, std::vector<cl::sycl::float4> f5678);
-    void setDistributions(int pos, float density, cl::sycl::float2 velocity);
+    inline void setDistributions(int pos, float density, cl::sycl::float2 velocity);
+    void initLbmBuffers();
 
     // END LBM
 
