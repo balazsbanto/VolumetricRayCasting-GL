@@ -56,65 +56,39 @@ public:
     virtual void resizeGL(QResizeEvent* event_in) override;
     virtual bool event(QEvent *event_in) override;
 
-    // LBM
-
-    void resetLBM();
-    // Directions
-    // Weights
-    std::vector<float> w { 4.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0 };
-   /* std::vector<cl::sycl::float4> colorScale_magnitude_rgb{ cl::sycl::float4{0.0, 0, 0, 0}, cl::sycl::float4{0, 0, 1, 0.2}, cl::sycl::float4{0, 1, 1, 0.4},
-        cl::sycl::float4{0, 1, 0, 0.8}, cl::sycl::float4{1, 1, 0, 1.6}, cl::sycl::float4{1, 0, 0, 3.2} };*/
-
-   // constants
+    // LBM D2Q9
+ 
+    // (1/relaxation time) Related to viscosity 
     float omega = 1.2f;
-    std::vector<float> rho;
-    std::vector<cl::sycl::float2> u;
-    std::vector<int> h_dirX { 0, 1, 0, -1,  0, 1, -1,  -1,  1};
-    std::vector<int> h_dirY { 0, 0, 1,  0, -1, 1,  1,  -1, -1};
     
-    // host vectors
-    std::vector<float> h_if0;
-    std::vector<float> h_if1234;
-    std::vector<float> h_if5678;
-    bool* h_type;
+    //  Distribution Buffers
+    std::array < std::unique_ptr<cl::sycl::buffer<float, 1> >, 2 > f0_buffers;
+    std::array < std::unique_ptr<cl::sycl::buffer<cl::sycl::float4, 1>>, 2 > f1234_buffers;
+    std::array < std::unique_ptr<cl::sycl::buffer<cl::sycl::float4, 1>>, 2 > f5678_buffers;
 
-    // Device outputs
-    std::vector<float> d_of0;
-    std::vector<float> d_of1234;
-    std::vector<float> d_of5678;
-    std::vector<cl::sycl::float2> d_velocity;
-
-    // Input buffers
-    cl::sycl::buffer<float, 1> if0_buffer;
-    cl::sycl::buffer<cl::sycl::float4, 1> if1234_buffer;
-    cl::sycl::buffer<cl::sycl::float4, 1> if5678_buffer;
+    // Output velocity buffer
+    cl::sycl::buffer<cl::sycl::float2, 1> velocity_buffer;
+    
+    // 0 - fluid, 1 - boundary
     cl::sycl::buffer<bool, 1>  type_buffer;
 
-    // Output buffers
-    cl::sycl::buffer<float, 1> of0_buffer;
-    cl::sycl::buffer<cl::sycl::float4, 1> of1234_buffer;
-    cl::sycl::buffer<cl::sycl::float4, 1> of5678_buffer;
-    cl::sycl::buffer<cl::sycl::float2, 1> velocity_buffer;
+    // Unit direction vectors and their buffers
+    std::vector<int> h_dirX{ 0, 1, 0, -1,  0, 1, -1,  -1,  1 };
+    std::vector<int> h_dirY{ 0, 0, 1,  0, -1, 1,  1,  -1, -1 };
 
-    // Constant data buffers
     cl::sycl::buffer<int, 1> h_dirX_buffer;
     cl::sycl::buffer<int, 1> h_dirY_buffer;
+    
+    // Weights
+    std::vector<float> w{ 4.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0 };
     cl::sycl::buffer<float, 1> h_weigt_buffer;
 
     // helper function
+    void resetLBM();
     size_t getMeshSize();
-    size_t getNrOf_f();
-    size_t getU_size();
     float computefEq(float weight, cl::sycl::float2 dir, float rho, cl::sycl::float2 velocity);
-
-    size_t N = 4;
-    size_t DIM = 2;
-
     void runOnCPU();
-    void testOutputs(std::vector<float> f0, std::vector<cl::sycl::float4> f1234, std::vector<cl::sycl::float4> f5678);
-    inline void setDistributions(int pos, float density, cl::sycl::float2 velocity);
-    void initLbmBuffers();
-
+    void testOutputs();
     // END LBM
 
 private:

@@ -10,6 +10,10 @@
 //#include "glm/ext.hpp"
 //#include "C:/Diplomamunka/vcpkg/installed/x64-windows/include/glm/ext.hpp"
 
+// Start equilibrium distribution for the current initial config (D2Q9, rho = 10) 
+const float F0_EQ = 4.4444444f;
+const float F1234_EQ = 1.111111f;
+const float F5678_EQ = 0.277777f;
 
 Raycaster::Raycaster(std::size_t plat,
                std::size_t dev,
@@ -283,8 +287,8 @@ void Raycaster::mouseDrag(QMouseEvent* event_in)
 {
 
 	using namespace cl::sycl;
-	qDebug() << "evenX " << event_in->x() << "oldX " << mousePos.x() << "\n";
-	qDebug() << "evenY " << event_in->y() << "oldY " << mousePos.y() << "\n";
+	/*qDebug() << "evenX " << event_in->x() << "oldX " << mousePos.x() << "\n";
+	qDebug() << "evenY " << event_in->y() << "oldY " << mousePos.y() << "\n";*/
 	// TODO: check how the sign in the y direction works
 	phi = (event_in->x() - mousePos.x());
 	theta = (event_in->y() - mousePos.y());
@@ -302,18 +306,35 @@ void Raycaster::mouseDrag(QMouseEvent* event_in)
 		int y = height() - 1 - event_in->y();
 		int pos = x + width() * y;
 
+		auto if0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
+		auto if1234 = f1234_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
+		auto if5678 = f5678_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
+
+		auto velocity_out = velocity_buffer.get_access<access::mode::read_write>();
+
 		// Calculate density from input distribution
-		rho = h_if0[pos] + h_if1234[pos * 4 + 0] + h_if1234[pos * 4 + 1] +
-			h_if1234[pos * 4 + 2] + h_if1234[pos * 4 + 3] +
-			h_if5678[pos * 4 + 0] + h_if5678[pos * 4 + 1] + h_if5678[pos * 4 + 2] +
-			h_if5678[pos * 4 + 3];
+		rho = if0[pos]
+			+ if1234[pos].x() + if1234[pos].y() + if1234[pos].z() + if1234[pos].w() +
+			+ if5678[pos].x() + if5678[pos].y() + if5678[pos].z() + if5678[pos].w();
 
 		// Increase the speed by input speed
-		d_velocity[pos] += dragVelocity;
-		float2 newVel = d_velocity[pos];
+		velocity_out[pos] += dragVelocity;
+
+		float2 newVel = velocity_out[pos];
 
 		// Calculate new distribution based on input speed
-		setDistributions(pos, rho, newVel);
+		if0[pos] = computefEq(w[0], cl::sycl::float2{ h_dirX[0], h_dirY[0] }, rho, newVel);
+
+		if1234[pos].x() = computefEq(w[1], cl::sycl::float2{ h_dirX[1], h_dirY[1] }, rho, newVel);
+		if1234[pos].y() = computefEq(w[2], cl::sycl::float2{ h_dirX[2], h_dirY[2] }, rho, newVel);
+		if1234[pos].z() = computefEq(w[3], cl::sycl::float2{ h_dirX[3], h_dirY[3] }, rho, newVel);
+		if1234[pos].w() = computefEq(w[4], cl::sycl::float2{ h_dirX[4], h_dirY[4] }, rho, newVel);
+
+		if5678[pos].x() = computefEq(w[5], cl::sycl::float2{ h_dirX[5], h_dirY[5] }, rho, newVel);
+		if5678[pos].y() = computefEq(w[6], cl::sycl::float2{ h_dirX[6], h_dirY[6] }, rho, newVel);
+		if5678[pos].z() = computefEq(w[7], cl::sycl::float2{ h_dirX[7], h_dirY[7] }, rho, newVel);
+		if5678[pos].w() = computefEq(w[8], cl::sycl::float2{ h_dirX[8], h_dirY[8] }, rho, newVel);
+
 	}
 	/*qDebug() << "event_in: " << event_in->x() << " " << event_in->y();
 	qDebug() << "mousePos: " << mousePos.x() << " " <<  mousePos.y() ;
@@ -325,17 +346,7 @@ void Raycaster::mouseDrag(QMouseEvent* event_in)
 	if (!getAnimating()) renderNow();
 }
 
-void Raycaster::setDistributions(int pos, float density, cl::sycl::float2 velocity) {
-	h_if0[pos] =			computefEq(w[0], cl::sycl::float2{ h_dirX[0], h_dirY[0] }, density, velocity);
-	h_if1234[pos * 4 + 0] = computefEq(w[1], cl::sycl::float2{ h_dirX[1], h_dirY[1] }, density, velocity);
-	h_if1234[pos * 4 + 1] = computefEq(w[2], cl::sycl::float2{ h_dirX[2], h_dirY[2] }, density, velocity);
-	h_if1234[pos * 4 + 2] = computefEq(w[3], cl::sycl::float2{ h_dirX[3], h_dirY[3] }, density, velocity);
-	h_if1234[pos * 4 + 3] = computefEq(w[4], cl::sycl::float2{ h_dirX[4], h_dirY[4] }, density, velocity);
-	h_if5678[pos * 4 + 0] = computefEq(w[5], cl::sycl::float2{ h_dirX[5], h_dirY[5] }, density, velocity);
-	h_if5678[pos * 4 + 1] = computefEq(w[6], cl::sycl::float2{ h_dirX[6], h_dirY[6] }, density, velocity);
-	h_if5678[pos * 4 + 2] = computefEq(w[7], cl::sycl::float2{ h_dirX[7], h_dirY[7] }, density, velocity);
-	h_if5678[pos * 4 + 3] = computefEq(w[8], cl::sycl::float2{ h_dirX[8], h_dirY[8] }, density, velocity);
-}
+
 
 void Raycaster::setVRMatrices() {
 
@@ -396,412 +407,69 @@ void Raycaster::setMatrices()
 
 	m_viewToWorldMtx = glm::inverse(worldToView);
 }
-//Override unimplemented InteropWindow function
-void Raycaster::updateScene_3()
-{
-	// NOTE 1: When cl_khr_gl_event is NOT supported, then clFinish() is the only portable
-	//         sync method and hence that will be called.
-	//
-	// NOTE 2.1: When cl_khr_gl_event IS supported AND the possibly conflicting OpenGL
-	//           context is current to the thread, then it is sufficient to wait for events
-	//           of clEnqueueAcquireGLObjects, as the spec guarantees that all OpenGL
-	//           operations involving the acquired memory objects have finished. It also
-	//           guarantees that any OpenGL commands issued after clEnqueueReleaseGLObjects
-	//           will not execute until the release is complete.
-	//         
-	//           See: opencl-1.2-extensions.pdf (Rev. 15. Chapter 9.8.5)
 
-	cl::Event acquire, release;
-
-	CLcommandqueues().at(dev_id).enqueueAcquireGLObjects(&interop_resources, nullptr, &acquire);
-
-	try
-	{
-		// Start raymarch lambda
-		auto m_raymarch = [](const cl::sycl::float3& camPos, const cl::sycl::float3& rayDirection, const float startT, const float endT, const float deltaS)
-		{
-			int saturationThreshold = 0;
-			// example lambda functions that could be given by the user
-			// density function(spherical harminics) inside the extent
-			auto densityFunc = [=](const float& r, const float& theta, const float& /*phi*/)
-			{
-#ifdef __SYCL_DEVICE_ONLY__
-				float sqrt3fpi = cl::sycl::sqrt(3.0f / M_PI);
-				//float val = 1.0f / 2.0f * sqrt3fpi * cl::sycl::cos(theta + phiii); // Y(l = 1, m = 0)
-				float val = 1.0f / 2.0f * sqrt3fpi * cl::sycl::cos(theta); // Y(l = 1, m = 0)
-				float result = cl::sycl::fabs(2 * cl::sycl::fabs(val) - r);
-#else
-				float sqrt3fpi = 1.0f;
-				float val = 1.0f;
-				float result = 1.0f;
-
-				(void)sqrt3fpi;
-				(void)r;
-				(void)theta;
-#endif
-				if (result < 0.01f)	// thickness of shell 
-					return val < 0 ? -1 : 1;
-				else
-					return 0;
-			};
-
-			// color according to the incoming density
-			auto colorFunc = [](const int density)
-			{
-				if (density > 0)
-				{
-					return cl::sycl::float4(0, 0, 1, 0); // blue
-				}
-				else if (density < 0)
-				{
-					return cl::sycl::float4(1, 1, 0, 0); // yellow
-				}
-				else
-					return  cl::sycl::float4(0, 0, 0, 0); // black
-			};
-
-			cl::sycl::float4 finalColor(0.0f, 0.0f, 0.0f, 0.0f);
-			cl::sycl::float3 location(0.0f, 0.0f, 0.0f);
-
-			location = camPos + startT * rayDirection;
-
-			float current_t = startT;
-
-			while (current_t < endT)
-			{
-				location = location + deltaS * rayDirection;
-				current_t += deltaS;
-
-				// check if it is inside
-				//if (!IsOutside(location))
-				float x = location.x();
-				float y = location.y();
-				float z = location.z();
-				//if (x < extent.m_maxX)
-				//if ((x < extent.m_maxX) && y < (extent.m_maxY) && (z < extent.m_maxZ) &&
-				//	(x > extent.m_minX) && (y > extent.m_minY) && (z > extent.m_minZ))
-				//{
-					// Convert to spherical coordinated
-					//float r = sqrt(location.x*location.x + location.y*location.y + location.z*location.z);
-#ifdef __SYCL_DEVICE_ONLY__
-				float r = cl::sycl::length(location);
-				float theta = cl::sycl::acos(location.z() / r); // *180 / 3.1415926f; // convert to degrees?
-				float phi = cl::sycl::atan2(y, x); // *180 / 3.1415926f;
-#else
-				float r = 0.f;
-				float theta = 0.f;
-				float phi = 0.f;
-#endif
-
-				cl::sycl::float4 color = colorFunc(densityFunc(r, theta, phi));
-
-
-				finalColor += color;
-				//} // end if check isInside
-
-				// stop the ray, when color reaches the saturation.
-				if (finalColor.r() > saturationThreshold || finalColor.g() > saturationThreshold
-					|| finalColor.b() > saturationThreshold)
-					break;
-			}
-
-			// normalizer according to the highest rgb value
-			auto normalizer = std::max((float)1.0f, std::max(std::max(finalColor.r(), finalColor.g()), finalColor.b()));
-			finalColor /= normalizer;
-			finalColor *= 255;
-
-
-			return cl::sycl::float4(finalColor.r(), finalColor.g(), finalColor.b(), 255.f);
-		};
-		// END raymarch lambda
-
-
-		compute_queue.submit([&](cl::sycl::handler& cgh)
-		{
-			using namespace cl::sycl;
-
-			auto old_lattice = latticeImages[Buffer::Front]->get_access<float4, access::mode::read>(cgh);
-			auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::write>(cgh);
-
-			sampler periodic{ coordinate_normalization_mode::unnormalized,
-							  addressing_mode::none,
-							  filtering_mode::nearest };
-
-			auto aspectRatio = (float)old_lattice.get_range()[0] / old_lattice.get_range()[1];
-			//float scaleFOV = tan(120.f / 2 * M_PI / 180);
-			// scaleFOV?
-			cgh.parallel_for<kernels::RaycasterStep>(range<2>{ old_lattice.get_range() },
-				[=, ViewToWorldMtx = m_viewToWorldMtx, camPos = m_vecEye, sphereCenter = glm::vec3(0.f, 0.f, 0.f), sphereRadius2 = 1.96f, raymarch = m_raymarch, deltaS = 0.02f
-				](const item<2> i)
-			{
-				// Minden mehet a regivel, mert jelenleg nem kell az uv koordinate transzformalgatas
-				int2 pixelIndex = i.get_id();
-				auto getPixelFromOldLattice = [=](int2 in) { return old_lattice.read(in, periodic); };
-				auto setPixelForNewLattice = [=](float4 in) { new_lattice.write((int2)i.get_id(), in); };
-
-
-				glm::vec4 rayVec((2 * (i[0] + 0.5f) / (float)old_lattice.get_range()[0] - 1)* aspectRatio /* * scaleFOV */,
-					(1 - 2 * (i[1] + 0.5f) / (float)old_lattice.get_range()[1]) /* * scaleFOV*/,
-					-1.0f, 1.0f);
-
-				float t0 = -1E+36f;
-				float t1 = -1E+36f;
-
-				glm::vec3 transformedCamRayDir = glm::vec3(ViewToWorldMtx * rayVec) - camPos;
-#ifdef __SYCL_DEVICE_ONLY__
-				cl::sycl::float3 transformedCamRayDirFloat3 = cl::sycl::normalize(cl::sycl::float3{ transformedCamRayDir.x, transformedCamRayDir.y, transformedCamRayDir.z });
-#else
-				cl::sycl::float3 transformedCamRayDirFloat3;
-#endif
-
-				auto getIntersections_lambda = [&t0, &t1](const cl::sycl::float3 rayorig, const cl::sycl::float3 raydir, const cl::sycl::float3 sphereCenter,
-					const float sphereRadius2) {
-					cl::sycl::float3 l = sphereCenter - rayorig;
-					float tca = cl::sycl::dot(l, raydir);
-					float d2 = cl::sycl::dot(l, l) - tca * tca;
-
-					bool isIntersected = true;
-					if ((sphereRadius2 - d2) < 0.0001f) {
-						isIntersected = false;
-
-					}
-#ifdef __SYCL_DEVICE_ONLY__
-					float thc = cl::sycl::sqrt(sphereRadius2 - d2);
-#else
-					float thc = 0.f;
-#endif
-					t0 = tca - thc;
-					t1 = tca + thc;
-
-					return isIntersected;
-
-				};
-
-				auto camPosFloat3 = cl::sycl::float3(camPos.x, camPos.y, camPos.z);
-				auto bIntersected = getIntersections_lambda(camPosFloat3, transformedCamRayDirFloat3,
-					cl::sycl::float3(sphereCenter.x, sphereCenter.y, sphereCenter.z), sphereRadius2);
-
-				cl::sycl::float4 pixelColor;
-				if (bIntersected && t0 > 0.0 && t1 > 0.0)
-				{
-					//pixelColor = cl::sycl::float4(255, 0, 0, 255);
-					pixelColor = raymarch(camPosFloat3, transformedCamRayDirFloat3, t0, t1, deltaS);
-				}
-				// if we are inside the spehere, we trace from the the ray's original position
-				else if (bIntersected && t1 > 0.0)
-				{
-					//pixelColor = cl::sycl::float4(0, 255, 0, 255);
-					pixelColor = raymarch(camPosFloat3, transformedCamRayDirFloat3, 0.0, t1, deltaS);
-				}
-				else
-				{
-					pixelColor = cl::sycl::float4(0.f, 0.f, 0.f, 255.f);
-				}
-
-				// seting rgb value for every pixel
-				setPixelForNewLattice(pixelColor);
-			});
-		});
-	}
-	catch (cl::sycl::compile_program_error e)
-	{
-		qDebug() << e.what();
-		std::exit(e.get_cl_code());
-	}
-	catch (cl::sycl::exception e)
-	{
-		qDebug() << e.what();
-		std::exit(e.get_cl_code());
-	}
-	catch (std::exception e)
-	{
-		qDebug() << e.what();
-		std::exit(EXIT_FAILURE);
-	}
-
-	CLcommandqueues().at(dev_id).enqueueReleaseGLObjects(&interop_resources, nullptr, &release);
-
-	// Wait for all OpenCL commands to finish
-	if (!cl_khr_gl_event_supported) cl::finish();
-	else release.wait();
-
-	// Swap front and back buffer handles
-	std::swap(CL_latticeImages[Front], CL_latticeImages[Back]);
-	std::swap(latticeImages[Front], latticeImages[Back]);
-	std::swap(texs[Front], texs[Back]);
-
-	imageDrawn = false;
-}
-
-
-void Raycaster::updateScene_2()
-{
-	// NOTE 1: When cl_khr_gl_event is NOT supported, then clFinish() is the only portable
-	//         sync method and hence that will be called.
-	//
-	// NOTE 2.1: When cl_khr_gl_event IS supported AND the possibly conflicting OpenGL
-	//           context is current to the thread, then it is sufficient to wait for events
-	//           of clEnqueueAcquireGLObjects, as the spec guarantees that all OpenGL
-	//           operations involving the acquired memory objects have finished. It also
-	//           guarantees that any OpenGL commands issued after clEnqueueReleaseGLObjects
-	//           will not execute until the release is complete.
-	//         
-	//           See: opencl-1.2-extensions.pdf (Rev. 15. Chapter 9.8.5)
-
-	cl::Event acquire, release;
-
-	CLcommandqueues().at(dev_id).enqueueAcquireGLObjects(&interop_resources, nullptr, &acquire);
-
-	try
-	{
-		compute_queue.submit([&](cl::sycl::handler& cgh)
-		{
-			using namespace cl::sycl;
-
-			auto old_lattice = latticeImages[Buffer::Front]->get_access<float4, access::mode::read>(cgh);
-			auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::write>(cgh);
-
-			sampler periodic{ coordinate_normalization_mode::normalized,
-					addressing_mode::repeat,
-					filtering_mode::nearest };
-
-			float2 d = float2{ 1, 1 } / float2{ old_lattice.get_range()[0], old_lattice.get_range()[1] };
-
-
-			cgh.parallel_for<kernels::Test>(range<2>{ old_lattice.get_range() },
-				[=](const item<2> i)
-			{
-				// Convert unnormalized floating coords offsetted by self to normalized uv
-				auto uv = [=, s = float2{ i.get_id()[0], i.get_id()[1] }, d2 = d * 0.5f](float2 in) { return (s + in) * d + d2; };
-
-				auto old = [=](float2 in) { return old_lattice.read(uv(in), periodic).r() > 0.5f; };
-				auto next = [=](bool v) { new_lattice.write((int2)i.get_id(), float4{ v, v, v, 1.f }); };
-
-				std::array<bool, 8> neighbours = {
-					old(float2{ -1,+1 }), old(float2{ 0,+1 }), old(float2{ +1,+1 }),
-					old(float2{ -1,0 }),                     old(float2{ +1,0 }),
-					old(float2{ -1,-1 }), old(float2{ 0,-1 }), old(float2{ +1,-1 }) };
-
-				bool self = old(float2{ 0,0 });
-
-				auto count = std::count(neighbours.cbegin(), neighbours.cend(), true);
-
-				next(self ? (count < 2 || count > 3 ? 0.f : 1.f) : (count == 3 ? 1.f : 0.f));
-			});
-		});
-	}
-	catch (cl::sycl::compile_program_error e)
-	{
-		qDebug() << e.what();
-		std::exit(e.get_cl_code());
-	}
-	catch (cl::sycl::exception e)
-	{
-		qDebug() << e.what();
-		std::exit(e.get_cl_code());
-	}
-	catch (std::exception e)
-	{
-		qDebug() << e.what();
-		std::exit(EXIT_FAILURE);
-	}
-
-	CLcommandqueues().at(dev_id).enqueueReleaseGLObjects(&interop_resources, nullptr, &release);
-
-	// Wait for all OpenCL commands to finish
-	if (!cl_khr_gl_event_supported) cl::finish();
-	else release.wait();
-
-	// Swap front and back buffer handles
-	std::swap(CL_latticeImages[Front], CL_latticeImages[Back]);
-	std::swap(latticeImages[Front], latticeImages[Back]);
-	std::swap(texs[Front], texs[Back]);
-
-	imageDrawn = false;
-}
 
 size_t Raycaster::getMeshSize() {
 	return width() * height();
 }
 
-size_t Raycaster::getNrOf_f() {
-	return getMeshSize() * N;
-}
-
-size_t Raycaster::getU_size() {
-	return getMeshSize() * DIM;
-}
 
 void Raycaster::resetLBM() {
 	using namespace cl::sycl;
 	auto wi = width();
 	auto he = height();
 	auto mesh = width() * height();
+	
 	// Initial velocity is 0
-	h_type =  new bool[getMeshSize()];
+	auto type =  new bool[getMeshSize()];
+	auto if0 = std::vector<float>(getMeshSize(), F0_EQ );
+	auto if1234 = std::vector<float4>(getMeshSize(), float4{ F1234_EQ });
+	auto if5678 = std::vector<float4>(getMeshSize(), float4{ F5678_EQ });
 
-	h_if0.resize(getMeshSize());
-	h_if1234.resize(getNrOf_f());
-	h_if5678.resize(getNrOf_f());
-	
-	rho.resize(getMeshSize());
-	u.resize(getMeshSize());
-	
-	// Output
-	d_of0.resize(getMeshSize());
-	d_of1234.resize(getNrOf_f());
-	d_of5678.resize(getNrOf_f());
-	d_velocity.resize(getMeshSize());
+	f0_buffers[Buffer::Front] = std::make_unique<buffer<float, 1>>(if0.data(), range<1> {getMeshSize()});
+	f1234_buffers[Buffer::Front] = std::make_unique<buffer<float4, 1>>(if1234.data(), range<1> {getMeshSize()});
+	f5678_buffers[Buffer::Front] = std::make_unique<buffer<float4, 1>>(if5678.data(), range<1> { getMeshSize()});
+	type_buffer = buffer<bool, 1>{ type, range<1> {getMeshSize()} };
 
-	float2 u0 = { 0.f, 0.f };
 
-	for (int y = 0; y < height(); y++) {
-		for (int x = 0; x < width(); x++) {
+	f0_buffers[Buffer::Back] = std::make_unique<buffer<float, 1>>(range<1> {getMeshSize()});
+	f1234_buffers[Buffer::Back] = std::make_unique<buffer<float4, 1>>(range<1> {getMeshSize()});
+	f5678_buffers[Buffer::Back] = std::make_unique<buffer<float4, 1>>(range<1> { getMeshSize()});
 
-			int pos = x + y * width();
-			float den = 10.0f;
-
-			// Initialize the velocity buffer
-			u[pos] = u0;
-
-			setDistributions(pos, den, u0);
-
-			// Initialize boundary cells
-			if (x == 0 || x == (width() - 1) || y == 0 || y == (height() - 1))
-			{
-				h_type[pos] = 1;
-			}
-
-			// Initialize fluid cells
-			else
-			{
-				h_type[pos] = 0;
-			}
-
-		}
-	}
-	
-	initLbmBuffers();
-}
-
-void Raycaster::initLbmBuffers(){
-	using namespace cl::sycl;
-	if0_buffer = buffer<float, 1>{ h_if0.data(), range<1> {getMeshSize()} };
-	if1234_buffer = buffer<float4, 1>{ reinterpret_cast<float4*>(h_if1234.data()), range<1> {getMeshSize()} };
-	if5678_buffer = buffer<float4, 1>{ reinterpret_cast<float4*>(h_if5678.data()), range<1> { getMeshSize()} };
-	type_buffer = buffer<bool, 1>{ h_type, range<1> {getMeshSize()} };
-
-	// Output
-	of0_buffer = buffer<float, 1>{ d_of0.data(), range<1> {getMeshSize()} };
-	of1234_buffer = buffer<float4, 1>{ reinterpret_cast<float4*>(d_of1234.data()), range<1> {getMeshSize()} };
-	of5678_buffer = buffer<float4, 1>{ reinterpret_cast<float4*>(d_of5678.data()), range<1> { getMeshSize()} };
-	velocity_buffer = buffer<float2, 1>{ d_velocity.data(), range<1> {getMeshSize()} };
+	velocity_buffer = buffer<float2, 1>{ {getMeshSize()} };
 
 	// Vector with contants
 	h_dirX_buffer = buffer<int, 1>{ h_dirX.data(), range<1> {h_dirX.size()} };
 	h_dirY_buffer = buffer<int, 1>{ h_dirY.data(), range<1> {h_dirY.size()} };
 	h_weigt_buffer = buffer<float, 1>{ w.data(), range<1> {w.size()} };
+	
+
+
+	//float2 u0 = { 0.f, 0.f };
+
+	for (int y = 0; y < height(); y++) {
+		for (int x = 0; x < width(); x++) {
+
+			int pos = x + y * width();
+
+			// Initialize boundary cells
+			if (x == 0 || x == (width() - 1) || y == 0 || y == (height() - 1))
+			{
+				type[pos] = 1;
+			}
+
+			// Initialize fluid cells
+			else
+			{
+				type[pos] = 0;
+			}
+
+		}
+	}
+	
+	testOutputs();
 }
+
 
 float Raycaster::computefEq(float weight, cl::sycl::float2 dir, float rho, cl::sycl::float2 velocity) {
 
@@ -836,26 +504,16 @@ void Raycaster::runOnCPU() {
 	rho += f0;*/
 	// END TEST
 
-	std::vector<float> if0{ h_if0 };
-	auto if1234_t{ reinterpret_cast<float4*>(h_if1234.data()) };
-	std::vector<float4> if1234{ if1234_t , if1234_t + h_if1234.size() / 4 };
-
-	auto if5678_t{ reinterpret_cast<float4*>(h_if5678.data()) };
-	std::vector<float4> if5678{ if5678_t , if5678_t + h_if5678.size() / 4 };
-
-	std::vector<bool>  type(h_type, h_type + width() * height());
+	auto if0 = f0_buffers[Buffer::Front]->get_access<access::mode::read>();
+	auto if1234 = f1234_buffers[Buffer::Front]->get_access<access::mode::read>();
+	auto if5678 = f5678_buffers[Buffer::Front]->get_access<access::mode::read>();
+	auto type = type_buffer.get_access<access::mode::read>();
 
 	// Output
-	std::vector<float> of0{ d_of0 };
-
-	auto of1234_t{ reinterpret_cast<float4*>(d_of1234.data()) };
-	std::vector<float4> of1234{ of1234_t , of1234_t + d_of1234.size() / 4 };
-
-	auto of5678_t{ reinterpret_cast<float4*>(d_of5678.data()) };
-	std::vector<float4> of5678{ of5678_t , of5678_t + d_of5678.size() / 4 };
-
-	//auto velocity_out_t{ reinterpret_cast<float2*>(d_velocity.data()) };
-	std::vector<float2> velocity_out{ d_velocity };
+	auto of0 = f0_buffers[Buffer::Back]->get_access<access::mode::write>();
+	auto of1234 = f1234_buffers[Buffer::Back]->get_access<access::mode::write>();
+	auto of5678 = f5678_buffers[Buffer::Back]->get_access<access::mode::write>();
+	auto velocity_out = velocity_buffer.get_access<access::mode::write>();;
 
 	// Vector with contants
 	std::vector <int> dirX{ h_dirX };
@@ -999,53 +657,41 @@ void Raycaster::runOnCPU() {
 		}
 	}
 
-	testOutputs(of0, of1234, of5678);
-	/*float c1 = 1.11111;
-	for (float4 a : of1234) {
-		auto e = 0.0001f;
-		auto result = (float)a.x() - c1;
-		auto b = result > e;
-		if (((float)a.x() - c1) > e || ((float)a.y() - c1) > e || ((float)a.z() - c1) > e || ((float)a.w() - c1) > e) {
-			break;
-		}
-	}*/
+
 
 	/*std::ofstream of0_file("of1234.txt");
 	std::ostream_iterator<float4> output_it(of0_file, " ");
 	std::copy(of1234.begin(), of1234.end(), output_it);
-	of0_file.close();
-
-	std::ofstream of0_file2("of5678.txt");
-	std::ostream_iterator<float4> output_it2(of0_file2, " ");
-	std::copy(of5678.begin(), of5678.end(), output_it2);
-	of0_file2.close();*/
+	of0_file.close();*/
 }
-void Raycaster::testOutputs(std::vector<float> f0, std::vector<cl::sycl::float4> f1234, std::vector<cl::sycl::float4> f5678) {
-	
+void Raycaster::testOutputs() {
+	auto f0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
+	auto f1234 = f1234_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
+	auto f5678 = f5678_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
+
 	auto e = 0.0001f;
-	float c1 = 4.44444;
 
 	bool flag0 = true;
 	bool flag1234 = true;
 	bool flag5678 = true;
-	for (auto a : f0) {
-		if (((float)a - c1) > e ) {
+	for (int i = 0; i < f0.get_count(); i++) {
+		if (((float)f0[i] - F0_EQ) > e ) {
 			flag0 = false;
 			break;
 		}
 	}
 
-	float c2 = 1.11111;
-	for (auto a : f1234) {
-		if (((float)a.x() - c2) > e || ((float)a.y() - c2) > e || ((float)a.z() - c2) > e || ((float)a.w() - c2) > e) {
+	for (int i = 0; i < f1234.get_count(); i++) {
+		if (((float)f1234[i].x() - F1234_EQ) > e || ((float)f1234[i].y() - F1234_EQ) > e || ((float)f1234[i].z() - F1234_EQ) > e
+			|| ((float)f1234[i].w() - F1234_EQ) > e) {
 			break;
 			flag1234 = false;
 		}
 	}
 
-	float c3 = 0.27777;
-	for (auto a : f5678) {
-		if (((float)a.x() - c3) > e || ((float)a.y() - c3) > e || ((float)a.z() - c3) > e || ((float)a.w() - c3) > e) {
+	for (int i = 0; i < f5678.get_count(); i++) {
+		if (((float)f5678[i].x() - F5678_EQ) > e || ((float)f5678[i].y() - F5678_EQ) > e || ((float)f5678[i].z() - F5678_EQ) > e
+			|| ((float)f5678[i].w() - F5678_EQ) > e) {
 			flag5678 = false;
 		}
 	}
@@ -1056,6 +702,8 @@ void Raycaster::testOutputs(std::vector<float> f0, std::vector<cl::sycl::float4>
 		qDebug() << "Test failed" << "\n";
 }
 
+
+// LBM
 void Raycaster::updateScene()
 {
 	// NOTE 1: When cl_khr_gl_event is NOT supported, then clFinish() is the only portable
@@ -1081,16 +729,17 @@ void Raycaster::updateScene()
 	{
 		compute_queue.submit([&](cl::sycl::handler& cgh)
 		{
-
-			auto if0 = if0_buffer.get_access<access::mode::read>(cgh);
-			auto if1234 = if1234_buffer.get_access<access::mode::read>(cgh);
-			auto if5678 = if5678_buffer.get_access<access::mode::read>(cgh);
+			// Input buffers
+			auto if0 = f0_buffers[Buffer::Front]->get_access<access::mode::read>(cgh);
+			auto if1234 = f1234_buffers[Buffer::Front]->get_access<access::mode::read>(cgh);
+			auto if5678 = f5678_buffers[Buffer::Front]->get_access<access::mode::read>(cgh);
 			auto type = type_buffer.get_access<access::mode::read>(cgh);
 			
+			// Output buffers
 			auto velocity_out = velocity_buffer.get_access<access::mode::discard_write>(cgh);
-			auto of0 = of0_buffer.get_access<access::mode::discard_write>(cgh);
-			auto of1234 = of1234_buffer.get_access<access::mode::discard_write>(cgh);
-			auto of5678 = of5678_buffer.get_access<access::mode::discard_write>(cgh);
+			auto of0 = f0_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
+			auto of1234 = f1234_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
+			auto of5678 = f5678_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
 
 			// Vector with contants
 			auto dirX = h_dirX_buffer.get_access<access::mode::read>(cgh);
@@ -1333,28 +982,341 @@ void Raycaster::updateScene()
 	if (!cl_khr_gl_event_supported) cl::finish();
 	else release.wait();
 
-	// TEST
-	/*auto of1234_t{ reinterpret_cast<float4*>(d_of1234.data()) };
-	std::vector<float4> of1234{ of1234_t , of1234_t + d_of1234.size() / 4 };
+	//testOutputs();
 
-	auto of5678_t{ reinterpret_cast<float4*>(d_of5678.data()) };
-	std::vector<float4> of5678{ of5678_t , of5678_t + d_of5678.size() / 4 };*/
-	//testOutputs(d_of0, of1234, of5678);
-	// END TEST
+	// Swap front and back buffer handles
+	std::swap(CL_latticeImages[Front], CL_latticeImages[Back]);
+	std::swap(latticeImages[Front], latticeImages[Back]);
+	std::swap(texs[Front], texs[Back]);
+	// TEST swaps
+	std::swap(f0_buffers[Buffer::Front], f0_buffers[Buffer::Back]);
+	std::swap(f1234_buffers[Buffer::Front], f1234_buffers[Buffer::Back]);
+	std::swap(f5678_buffers[Buffer::Front], f5678_buffers[Buffer::Back]);
+	//testOutputs();
+
+	imageDrawn = false;
+}
+
+// Raycaster
+void Raycaster::updateScene_3()
+{
+	// NOTE 1: When cl_khr_gl_event is NOT supported, then clFinish() is the only portable
+	//         sync method and hence that will be called.
+	//
+	// NOTE 2.1: When cl_khr_gl_event IS supported AND the possibly conflicting OpenGL
+	//           context is current to the thread, then it is sufficient to wait for events
+	//           of clEnqueueAcquireGLObjects, as the spec guarantees that all OpenGL
+	//           operations involving the acquired memory objects have finished. It also
+	//           guarantees that any OpenGL commands issued after clEnqueueReleaseGLObjects
+	//           will not execute until the release is complete.
+	//         
+	//           See: opencl-1.2-extensions.pdf (Rev. 15. Chapter 9.8.5)
+
+	cl::Event acquire, release;
+
+	CLcommandqueues().at(dev_id).enqueueAcquireGLObjects(&interop_resources, nullptr, &acquire);
+
+	try
+	{
+		// Start raymarch lambda
+		auto m_raymarch = [](const cl::sycl::float3& camPos, const cl::sycl::float3& rayDirection, const float startT, const float endT, const float deltaS)
+		{
+			int saturationThreshold = 0;
+			// example lambda functions that could be given by the user
+			// density function(spherical harminics) inside the extent
+			auto densityFunc = [=](const float& r, const float& theta, const float& /*phi*/)
+			{
+#ifdef __SYCL_DEVICE_ONLY__
+				float sqrt3fpi = cl::sycl::sqrt(3.0f / M_PI);
+				//float val = 1.0f / 2.0f * sqrt3fpi * cl::sycl::cos(theta + phiii); // Y(l = 1, m = 0)
+				float val = 1.0f / 2.0f * sqrt3fpi * cl::sycl::cos(theta); // Y(l = 1, m = 0)
+				float result = cl::sycl::fabs(2 * cl::sycl::fabs(val) - r);
+#else
+				float sqrt3fpi = 1.0f;
+				float val = 1.0f;
+				float result = 1.0f;
+
+				(void)sqrt3fpi;
+				(void)r;
+				(void)theta;
+#endif
+				if (result < 0.01f)	// thickness of shell 
+					return val < 0 ? -1 : 1;
+				else
+					return 0;
+			};
+
+			// color according to the incoming density
+			auto colorFunc = [](const int density)
+			{
+				if (density > 0)
+				{
+					return cl::sycl::float4(0, 0, 1, 0); // blue
+				}
+				else if (density < 0)
+				{
+					return cl::sycl::float4(1, 1, 0, 0); // yellow
+				}
+				else
+					return  cl::sycl::float4(0, 0, 0, 0); // black
+			};
+
+			cl::sycl::float4 finalColor(0.0f, 0.0f, 0.0f, 0.0f);
+			cl::sycl::float3 location(0.0f, 0.0f, 0.0f);
+
+			location = camPos + startT * rayDirection;
+
+			float current_t = startT;
+
+			while (current_t < endT)
+			{
+				location = location + deltaS * rayDirection;
+				current_t += deltaS;
+
+				// check if it is inside
+				//if (!IsOutside(location))
+				float x = location.x();
+				float y = location.y();
+				float z = location.z();
+				//if (x < extent.m_maxX)
+				//if ((x < extent.m_maxX) && y < (extent.m_maxY) && (z < extent.m_maxZ) &&
+				//	(x > extent.m_minX) && (y > extent.m_minY) && (z > extent.m_minZ))
+				//{
+					// Convert to spherical coordinated
+					//float r = sqrt(location.x*location.x + location.y*location.y + location.z*location.z);
+#ifdef __SYCL_DEVICE_ONLY__
+				float r = cl::sycl::length(location);
+				float theta = cl::sycl::acos(location.z() / r); // *180 / 3.1415926f; // convert to degrees?
+				float phi = cl::sycl::atan2(y, x); // *180 / 3.1415926f;
+#else
+				float r = 0.f;
+				float theta = 0.f;
+				float phi = 0.f;
+#endif
+
+				cl::sycl::float4 color = colorFunc(densityFunc(r, theta, phi));
+
+
+				finalColor += color;
+				//} // end if check isInside
+
+				// stop the ray, when color reaches the saturation.
+				if (finalColor.r() > saturationThreshold || finalColor.g() > saturationThreshold
+					|| finalColor.b() > saturationThreshold)
+					break;
+			}
+
+			// normalizer according to the highest rgb value
+			auto normalizer = std::max((float)1.0f, std::max(std::max(finalColor.r(), finalColor.g()), finalColor.b()));
+			finalColor /= normalizer;
+			finalColor *= 255;
+
+
+			return cl::sycl::float4(finalColor.r(), finalColor.g(), finalColor.b(), 255.f);
+		};
+		// END raymarch lambda
+
+
+		compute_queue.submit([&](cl::sycl::handler& cgh)
+		{
+			using namespace cl::sycl;
+
+			auto old_lattice = latticeImages[Buffer::Front]->get_access<float4, access::mode::read>(cgh);
+			auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::write>(cgh);
+
+			sampler periodic{ coordinate_normalization_mode::unnormalized,
+							  addressing_mode::none,
+							  filtering_mode::nearest };
+
+			auto aspectRatio = (float)old_lattice.get_range()[0] / old_lattice.get_range()[1];
+			//float scaleFOV = tan(120.f / 2 * M_PI / 180);
+			// scaleFOV?
+			cgh.parallel_for<kernels::RaycasterStep>(range<2>{ old_lattice.get_range() },
+				[=, ViewToWorldMtx = m_viewToWorldMtx, camPos = m_vecEye, sphereCenter = glm::vec3(0.f, 0.f, 0.f), sphereRadius2 = 1.96f, raymarch = m_raymarch, deltaS = 0.02f
+				](const item<2> i)
+			{
+				// Minden mehet a regivel, mert jelenleg nem kell az uv koordinate transzformalgatas
+				int2 pixelIndex = i.get_id();
+				auto getPixelFromOldLattice = [=](int2 in) { return old_lattice.read(in, periodic); };
+				auto setPixelForNewLattice = [=](float4 in) { new_lattice.write((int2)i.get_id(), in); };
+
+
+				glm::vec4 rayVec((2 * (i[0] + 0.5f) / (float)old_lattice.get_range()[0] - 1)* aspectRatio /* * scaleFOV */,
+					(1 - 2 * (i[1] + 0.5f) / (float)old_lattice.get_range()[1]) /* * scaleFOV*/,
+					-1.0f, 1.0f);
+
+				float t0 = -1E+36f;
+				float t1 = -1E+36f;
+
+				glm::vec3 transformedCamRayDir = glm::vec3(ViewToWorldMtx * rayVec) - camPos;
+#ifdef __SYCL_DEVICE_ONLY__
+				cl::sycl::float3 transformedCamRayDirFloat3 = cl::sycl::normalize(cl::sycl::float3{ transformedCamRayDir.x, transformedCamRayDir.y, transformedCamRayDir.z });
+#else
+				cl::sycl::float3 transformedCamRayDirFloat3;
+#endif
+
+				auto getIntersections_lambda = [&t0, &t1](const cl::sycl::float3 rayorig, const cl::sycl::float3 raydir, const cl::sycl::float3 sphereCenter,
+					const float sphereRadius2) {
+					cl::sycl::float3 l = sphereCenter - rayorig;
+					float tca = cl::sycl::dot(l, raydir);
+					float d2 = cl::sycl::dot(l, l) - tca * tca;
+
+					bool isIntersected = true;
+					if ((sphereRadius2 - d2) < 0.0001f) {
+						isIntersected = false;
+
+					}
+#ifdef __SYCL_DEVICE_ONLY__
+					float thc = cl::sycl::sqrt(sphereRadius2 - d2);
+#else
+					float thc = 0.f;
+#endif
+					t0 = tca - thc;
+					t1 = tca + thc;
+
+					return isIntersected;
+
+				};
+
+				auto camPosFloat3 = cl::sycl::float3(camPos.x, camPos.y, camPos.z);
+				auto bIntersected = getIntersections_lambda(camPosFloat3, transformedCamRayDirFloat3,
+					cl::sycl::float3(sphereCenter.x, sphereCenter.y, sphereCenter.z), sphereRadius2);
+
+				cl::sycl::float4 pixelColor;
+				if (bIntersected && t0 > 0.0 && t1 > 0.0)
+				{
+					//pixelColor = cl::sycl::float4(255, 0, 0, 255);
+					pixelColor = raymarch(camPosFloat3, transformedCamRayDirFloat3, t0, t1, deltaS);
+				}
+				// if we are inside the spehere, we trace from the the ray's original position
+				else if (bIntersected && t1 > 0.0)
+				{
+					//pixelColor = cl::sycl::float4(0, 255, 0, 255);
+					pixelColor = raymarch(camPosFloat3, transformedCamRayDirFloat3, 0.0, t1, deltaS);
+				}
+				else
+				{
+					pixelColor = cl::sycl::float4(0.f, 0.f, 0.f, 255.f);
+				}
+
+				// seting rgb value for every pixel
+				setPixelForNewLattice(pixelColor);
+			});
+		});
+	}
+	catch (cl::sycl::compile_program_error e)
+	{
+		qDebug() << e.what();
+		std::exit(e.get_cl_code());
+	}
+	catch (cl::sycl::exception e)
+	{
+		qDebug() << e.what();
+		std::exit(e.get_cl_code());
+	}
+	catch (std::exception e)
+	{
+		qDebug() << e.what();
+		std::exit(EXIT_FAILURE);
+	}
+
+	CLcommandqueues().at(dev_id).enqueueReleaseGLObjects(&interop_resources, nullptr, &release);
+
+	// Wait for all OpenCL commands to finish
+	if (!cl_khr_gl_event_supported) cl::finish();
+	else release.wait();
 
 	// Swap front and back buffer handles
 	std::swap(CL_latticeImages[Front], CL_latticeImages[Back]);
 	std::swap(latticeImages[Front], latticeImages[Back]);
 	std::swap(texs[Front], texs[Back]);
 
-	std::swap(h_if0, d_of0);
-	std::swap(h_if1234, d_of1234);
-	std::swap(h_if5678, d_of5678);
+	imageDrawn = false;
+}
 
-	// TEST swaps
-	std::swap(if0_buffer, of0_buffer);
-	std::swap(if1234_buffer, of1234_buffer);
-	std::swap(if5678_buffer, of5678_buffer);
+// Conway
+void Raycaster::updateScene_2()
+{
+	// NOTE 1: When cl_khr_gl_event is NOT supported, then clFinish() is the only portable
+	//         sync method and hence that will be called.
+	//
+	// NOTE 2.1: When cl_khr_gl_event IS supported AND the possibly conflicting OpenGL
+	//           context is current to the thread, then it is sufficient to wait for events
+	//           of clEnqueueAcquireGLObjects, as the spec guarantees that all OpenGL
+	//           operations involving the acquired memory objects have finished. It also
+	//           guarantees that any OpenGL commands issued after clEnqueueReleaseGLObjects
+	//           will not execute until the release is complete.
+	//         
+	//           See: opencl-1.2-extensions.pdf (Rev. 15. Chapter 9.8.5)
+
+	cl::Event acquire, release;
+
+	CLcommandqueues().at(dev_id).enqueueAcquireGLObjects(&interop_resources, nullptr, &acquire);
+
+	try
+	{
+		compute_queue.submit([&](cl::sycl::handler& cgh)
+		{
+			using namespace cl::sycl;
+
+			auto old_lattice = latticeImages[Buffer::Front]->get_access<float4, access::mode::read>(cgh);
+			auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::write>(cgh);
+
+			sampler periodic{ coordinate_normalization_mode::normalized,
+					addressing_mode::repeat,
+					filtering_mode::nearest };
+
+			float2 d = float2{ 1, 1 } / float2{ old_lattice.get_range()[0], old_lattice.get_range()[1] };
+
+
+			cgh.parallel_for<kernels::Test>(range<2>{ old_lattice.get_range() },
+				[=](const item<2> i)
+			{
+				// Convert unnormalized floating coords offsetted by self to normalized uv
+				auto uv = [=, s = float2{ i.get_id()[0], i.get_id()[1] }, d2 = d * 0.5f](float2 in) { return (s + in) * d + d2; };
+
+				auto old = [=](float2 in) { return old_lattice.read(uv(in), periodic).r() > 0.5f; };
+				auto next = [=](bool v) { new_lattice.write((int2)i.get_id(), float4{ v, v, v, 1.f }); };
+
+				std::array<bool, 8> neighbours = {
+					old(float2{ -1,+1 }), old(float2{ 0,+1 }), old(float2{ +1,+1 }),
+					old(float2{ -1,0 }),                     old(float2{ +1,0 }),
+					old(float2{ -1,-1 }), old(float2{ 0,-1 }), old(float2{ +1,-1 }) };
+
+				bool self = old(float2{ 0,0 });
+
+				auto count = std::count(neighbours.cbegin(), neighbours.cend(), true);
+
+				next(self ? (count < 2 || count > 3 ? 0.f : 1.f) : (count == 3 ? 1.f : 0.f));
+			});
+		});
+	}
+	catch (cl::sycl::compile_program_error e)
+	{
+		qDebug() << e.what();
+		std::exit(e.get_cl_code());
+	}
+	catch (cl::sycl::exception e)
+	{
+		qDebug() << e.what();
+		std::exit(e.get_cl_code());
+	}
+	catch (std::exception e)
+	{
+		qDebug() << e.what();
+		std::exit(EXIT_FAILURE);
+	}
+
+	CLcommandqueues().at(dev_id).enqueueReleaseGLObjects(&interop_resources, nullptr, &release);
+
+	// Wait for all OpenCL commands to finish
+	if (!cl_khr_gl_event_supported) cl::finish();
+	else release.wait();
+
+	// Swap front and back buffer handles
+	std::swap(CL_latticeImages[Front], CL_latticeImages[Back]);
+	std::swap(latticeImages[Front], latticeImages[Back]);
+	std::swap(texs[Front], texs[Back]);
 
 	imageDrawn = false;
 }
