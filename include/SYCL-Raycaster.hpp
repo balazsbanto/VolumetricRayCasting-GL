@@ -64,6 +64,13 @@ public:
     std::array < std::unique_ptr<cl::sycl::buffer<float, 1> >, 2 > f0_buffers;
     std::array < std::unique_ptr<cl::sycl::buffer<cl::sycl::float4, 1>>, 2 > f1234_buffers;
     std::array < std::unique_ptr<cl::sycl::buffer<cl::sycl::float4, 1>>, 2 > f5678_buffers;
+    
+    // Host vectors
+    std::array < std::vector<float> , 2 > f0_host;
+    std::array < std::vector<cl::sycl::float4>, 2 > f1234_host;
+    std::array < std::vector<cl::sycl::float4>, 2 > f5678_host;
+    std::vector<cl::sycl::float2> velocity_host;
+    bool* type_host;
 
     // Output velocity buffer
     cl::sycl::buffer<cl::sycl::float2, 1> velocity_buffer;

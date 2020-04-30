@@ -314,8 +314,8 @@ void Raycaster::mouseDrag(QMouseEvent* event_in)
 
 		// Calculate density from input distribution
 		rho = if0[pos]
-			+ if1234[pos].x() + if1234[pos].y() + if1234[pos].z() + if1234[pos].w() +
-			+ if5678[pos].x() + if5678[pos].y() + if5678[pos].z() + if5678[pos].w();
+			+ if1234[pos].get_value(0) + if1234[pos].get_value(1) + if1234[pos].get_value(2) + if1234[pos].get_value(3) +
+			+if5678[pos].get_value(0) + if5678[pos].get_value(1) + if5678[pos].get_value(2) + if5678[pos].get_value(3);
 
 		// Increase the speed by input speed
 		//velocity_out[pos] += dragVelocity;
@@ -323,17 +323,18 @@ void Raycaster::mouseDrag(QMouseEvent* event_in)
 		float2 newVel = velocity_out[pos] + dragVelocity;
 
 		// Calculate new distribution based on input speed
+
 		if0[pos] = computefEq(w[0], cl::sycl::float2{ h_dirX[0], h_dirY[0] }, rho, newVel);
 
-		if1234[pos].x() = computefEq(w[1], cl::sycl::float2{ h_dirX[1], h_dirY[1] }, rho, newVel);
-		if1234[pos].y() = computefEq(w[2], cl::sycl::float2{ h_dirX[2], h_dirY[2] }, rho, newVel);
-		if1234[pos].z() = computefEq(w[3], cl::sycl::float2{ h_dirX[3], h_dirY[3] }, rho, newVel);
-		if1234[pos].w() = computefEq(w[4], cl::sycl::float2{ h_dirX[4], h_dirY[4] }, rho, newVel);
+		if1234[pos].set_value(0, computefEq(w[1], cl::sycl::float2{ h_dirX[1], h_dirY[1] }, rho, newVel));
+		if1234[pos].set_value(1, computefEq(w[2], cl::sycl::float2{ h_dirX[2], h_dirY[2] }, rho, newVel));
+		if1234[pos].set_value(2, computefEq(w[3], cl::sycl::float2{ h_dirX[3], h_dirY[3] }, rho, newVel));
+		if1234[pos].set_value(3, computefEq(w[4], cl::sycl::float2{ h_dirX[4], h_dirY[4] }, rho, newVel));
 
-		if5678[pos].x() = computefEq(w[5], cl::sycl::float2{ h_dirX[5], h_dirY[5] }, rho, newVel);
-		if5678[pos].y() = computefEq(w[6], cl::sycl::float2{ h_dirX[6], h_dirY[6] }, rho, newVel);
-		if5678[pos].z() = computefEq(w[7], cl::sycl::float2{ h_dirX[7], h_dirY[7] }, rho, newVel);
-		if5678[pos].w() = computefEq(w[8], cl::sycl::float2{ h_dirX[8], h_dirY[8] }, rho, newVel);
+		if5678[pos].set_value(0, computefEq(w[5], cl::sycl::float2{ h_dirX[5], h_dirY[5] }, rho, newVel));
+		if5678[pos].set_value(1, computefEq(w[6], cl::sycl::float2{ h_dirX[6], h_dirY[6] }, rho, newVel));
+		if5678[pos].set_value(2, computefEq(w[7], cl::sycl::float2{ h_dirX[7], h_dirY[7] }, rho, newVel));
+		if5678[pos].set_value(3, computefEq(w[8], cl::sycl::float2{ h_dirX[8], h_dirY[8] }, rho, newVel));
 
 	}
 	/*qDebug() << "event_in: " << event_in->x() << " " << event_in->y();
@@ -418,22 +419,27 @@ void Raycaster::resetLBM() {
 	using namespace cl::sycl;
 	
 	// Initial velocity is 0
-	auto type =  new bool[getMeshSize()];
-	auto if0 = std::vector<float>(getMeshSize(), F0_EQ );
-	auto if1234 = std::vector<float4>(getMeshSize(), float4{ F1234_EQ });
-	auto if5678 = std::vector<float4>(getMeshSize(), float4{ F5678_EQ });
+	type_host =  new bool[getMeshSize()];
+	f0_host [Buffer::Front]   = std::vector<float>(getMeshSize(), F0_EQ );
+	f1234_host[Buffer::Front] = std::vector<float4>(getMeshSize(), float4{ F1234_EQ });
+	f5678_host[Buffer::Front] = std::vector<float4>(getMeshSize(), float4{ F5678_EQ });
 
-	f0_buffers[Buffer::Front] = std::make_unique<buffer<float, 1>>(if0.data(), range<1> {getMeshSize()});
-	f1234_buffers[Buffer::Front] = std::make_unique<buffer<float4, 1>>(if1234.data(), range<1> {getMeshSize()});
-	f5678_buffers[Buffer::Front] = std::make_unique<buffer<float4, 1>>(if5678.data(), range<1> { getMeshSize()});
-	type_buffer = buffer<bool, 1>{ type, range<1> {getMeshSize()} };
+	f0_host[Buffer::Back]	 = f0_host[Buffer::Front];
+	f1234_host[Buffer::Back] = f1234_host[Buffer::Front];
+	f5678_host[Buffer::Back] = f5678_host[Buffer::Front];
+
+	f0_buffers[Buffer::Front] = std::make_unique<buffer<float, 1>>(f0_host[Buffer::Front].data(), range<1> {getMeshSize()});
+	f1234_buffers[Buffer::Front] = std::make_unique<buffer<float4, 1>>(f1234_host[Buffer::Front].data(), range<1> {getMeshSize()});
+	f5678_buffers[Buffer::Front] = std::make_unique<buffer<float4, 1>>(f5678_host[Buffer::Front].data(), range<1> { getMeshSize()});
+	type_buffer = buffer<bool, 1>{ type_host, range<1> {getMeshSize()} };
 
 
-	f0_buffers[Buffer::Back] = std::make_unique<buffer<float, 1>>(range<1> {getMeshSize()});
-	f1234_buffers[Buffer::Back] = std::make_unique<buffer<float4, 1>>(range<1> {getMeshSize()});
-	f5678_buffers[Buffer::Back] = std::make_unique<buffer<float4, 1>>(range<1> { getMeshSize()});
+	f0_buffers[Buffer::Back] = std::make_unique<buffer<float, 1>>(f0_host[Buffer::Back].data(), range<1> {getMeshSize()});
+	f1234_buffers[Buffer::Back] = std::make_unique<buffer<float4, 1>>(f1234_host[Buffer::Back].data(), range<1> {getMeshSize()});
+	f5678_buffers[Buffer::Back] = std::make_unique<buffer<float4, 1>>(f5678_host[Buffer::Back].data(), range<1> { getMeshSize()});
 
-	velocity_buffer = buffer<float2, 1>{ {getMeshSize()} };
+	velocity_host = std::vector<float2>(getMeshSize(), float2{ 0 });
+	velocity_buffer = buffer<float2, 1>{ velocity_host.data(), range<1> { getMeshSize()} };
 
 	// Vector with contants
 	h_dirX_buffer = buffer<int, 1>{ h_dirX.data(), range<1> {h_dirX.size()} };
@@ -450,21 +456,57 @@ void Raycaster::resetLBM() {
 			int pos = x + y * width();
 
 			// Initialize boundary cells
-			if (x == 0 || x == (width() - 1) || y == 0 || y == (height() - 1))
-			{
-				type[pos] = 1;
-			}
+			//if (x == 0 || x == (width() - 1) || y == 0 || y == (height() - 1))
+			//{
+			//	type[pos] = 1;
+			//}
 
-			// Initialize fluid cells
-			else
-			{
-				type[pos] = 0;
-			}
+			//// Initialize fluid cells
+			//else
+			//{
+			type_host[pos] = 0;
+			//}
 
 		}
 	}
-	
-	testOutputs();
+
+	// Set new distributions
+	//float rho;
+
+	//int x = 1;
+	//int y = height() - 1 - 1;
+	//int pos = x + width() * y;
+
+	//auto if0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
+	//auto if1234 = f1234_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
+	//auto if5678 = f5678_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
+
+	//auto dirX = h_dirX_buffer.get_access<access::mode::read>();
+	//auto dirY = h_dirY_buffer.get_access<access::mode::read>();
+	//auto weight = h_weigt_buffer.get_access<access::mode::read>();
+
+
+	//// Calculate density from input distribution
+	//rho = if0[pos]
+	//	+ if1234[pos].get_value(0) + if1234[pos].get_value(1) + if1234[pos].get_value(2) + if1234[pos].get_value(3) +
+	//	+ if5678[pos].get_value(0) + if5678[pos].get_value(1) + if5678[pos].get_value(2) + if5678[pos].get_value(3);
+
+	//float2 newVel = float2{ 0.34, -0.34 };
+
+	//// Calculate new distribution based on input speed
+	//if0[pos] = computefEq(weight[0], cl::sycl::float2{ dirX[0], dirY[0] }, rho, newVel);
+
+	//if1234[pos].set_value(0, computefEq(weight[1], cl::sycl::float2{ dirX[1], dirY[1] }, rho, newVel));
+	//if1234[pos].set_value(1, computefEq(weight[2], cl::sycl::float2{ dirX[2], dirY[2] }, rho, newVel));
+	//if1234[pos].set_value(2, computefEq(weight[3], cl::sycl::float2{ dirX[3], dirY[3] }, rho, newVel));
+	//if1234[pos].set_value(3, computefEq(weight[4], cl::sycl::float2{ dirX[4], dirY[4] }, rho, newVel));
+	//							 
+	//if5678[pos].set_value(0, computefEq(weight[5], cl::sycl::float2{ dirX[5], dirY[5] }, rho, newVel));
+	//if5678[pos].set_value(1, computefEq(weight[6], cl::sycl::float2{ dirX[6], dirY[6] }, rho, newVel));
+	//if5678[pos].set_value(2, computefEq(weight[7], cl::sycl::float2{ dirX[7], dirY[7] }, rho, newVel));
+	//if5678[pos].set_value(3, computefEq(weight[8], cl::sycl::float2{ dirX[8], dirY[8] }, rho, newVel));
+	//
+	//testOutputs();
 }
 
 
@@ -499,9 +541,10 @@ void Raycaster::runOnCPU() {
 	for (int y = 0; y < height(); y++) {
 		for (int x = 0; x < width(); x++) {
 
-			uint2 id(x, y);
-			uint pos = id.x() + width() * id.y();
+			int2 id(x, y);
+			int pos = id.get_value(0) + width() * id.get_value(1);
 
+			qDebug() << x << " " << y << " " << pos << "\n";
 			// Read input distributions
 			float f0 = if0[pos];
 			float4 f1234 = if1234[pos];
@@ -513,9 +556,8 @@ void Raycaster::runOnCPU() {
 			// Collide
 			//boundary
 			if (type[pos]) {
-				// Swap directions by swizzling
-				 // Swap directions by swizzling
-				f1234.x() = f1234.z();
+				// Swap directions by swizzling // Ez igy nem jo, de ez csak a hataroknal jelent problemat
+				/*f1234.x() = f1234.z();
 				f1234.y() = f1234.w();
 				f1234.z() = f1234.x();
 				f1234.w() = f1234.y();
@@ -523,7 +565,7 @@ void Raycaster::runOnCPU() {
 				f5678.x() = f5678.z();
 				f5678.y() = f5678.w();
 				f5678.z() = f5678.x();
-				f5678.w() = f5678.y();
+				f5678.w() = f5678.y();*/
 
 				rho = 0;
 				u = float2{ 0.f, 0.f };
@@ -533,15 +575,21 @@ void Raycaster::runOnCPU() {
 			{
 				// Compute rho and u
 				// Rho is computed by doing a reduction on f
-				rho = f0 + f1234.x() + f1234.y() + f1234.z() + f1234.w() + f5678.x() + f5678.y() + f5678.z() + f5678.w();
+				rho = f0 + f1234.get_value(0) + f1234.get_value(1) + f1234.get_value(2) + f1234.get_value(3)
+					+ f5678.get_value(0) + f5678.get_value(1) + f5678.get_value(2) + f5678.get_value(3);
 
 				// Compute velocity
 
-				u.x() = (f1234.x() * float(dirX[1]) + f1234.y() * float(dirX[2]) + f1234.z() * float(dirX[3]) + f1234.w() * float(dirX[4])
-					+ f5678.x() * float(dirX[5]) + f5678.y() * float(dirX[6]) + f5678.z() * float(dirX[7]) + f5678.w() * float(dirX[8])) / rho;
+				// TODO: check if I use f1234.get_value(index) instead
+				float uX = (f1234.get_value(0) * float(dirX[1]) + f1234.get_value(1) * float(dirX[2]) + f1234.get_value(2) * float(dirX[3]) + f1234.get_value(3) * float(dirX[4])
+					+ f5678.get_value(0) * float(dirX[5]) + f5678.get_value(1) * float(dirX[6]) + f5678.get_value(2) * float(dirX[7]) + f5678.get_value(3) * float(dirX[8])) / rho;
 
-				u.y() = (f1234.x() * float(dirY[1]) + f1234.y() * float(dirY[2]) + f1234.z() * float(dirY[3]) + f1234.w() * float(dirY[4])
-					+ f5678.x() * float(dirY[5]) + f5678.y() * float(dirY[6]) + f5678.z() * float(dirY[7]) + f5678.w() * float(dirY[8])) / rho;
+				u.set_value(0, uX);
+
+				float uY = (f1234.get_value(0) * float(dirY[1]) + f1234.get_value(1) * float(dirY[2]) + f1234.get_value(2) * float(dirY[3]) + f1234.get_value(3) * float(dirY[4])
+					+ f5678.get_value(0) * float(dirY[5]) + f5678.get_value(1) * float(dirY[6]) + f5678.get_value(2) * float(dirY[7]) + f5678.get_value(3) * float(dirY[8])) / rho;
+
+				u.set_value(1, uY);
 
 				float4 fEq1234;	// Stores feq 
 				float4 fEq5678;
@@ -556,14 +604,15 @@ void Raycaster::runOnCPU() {
 
 				// Compute fEq
 				fEq0 = computefEq(rho, weight[0], float2{ 0, 0 }, u);
-				fEq1234.x() = computefEq(rho, weight[1], float2{ dirX[1], dirY[1] }, u);
-				fEq1234.y() = computefEq(rho, weight[2], float2{ dirX[2], dirY[2] }, u);
-				fEq1234.z() = computefEq(rho, weight[3], float2{ dirX[3], dirY[3] }, u);
-				fEq1234.w() = computefEq(rho, weight[4], float2{ dirX[4], dirY[4] }, u);
-				fEq5678.x() = computefEq(rho, weight[5], float2{ dirX[5], dirY[5] }, u);
-				fEq5678.y() = computefEq(rho, weight[6], float2{ dirX[6], dirY[6] }, u);
-				fEq5678.z() = computefEq(rho, weight[7], float2{ dirX[7], dirY[7] }, u);
-				fEq5678.w() = computefEq(rho, weight[8], float2{ dirX[8], dirY[8] }, u);
+				fEq1234.set_value(0, computefEq(rho, weight[1], float2{ dirX[1], dirY[1] }, u));
+				fEq1234.set_value(1, computefEq(rho, weight[2], float2{ dirX[2], dirY[2] }, u));
+				fEq1234.set_value(2, computefEq(rho, weight[3], float2{ dirX[3], dirY[3] }, u));
+				fEq1234.set_value(3, computefEq(rho, weight[4], float2{ dirX[4], dirY[4] }, u));
+
+				fEq5678.set_value(0, computefEq(rho, weight[5], float2{ dirX[5], dirY[5] }, u));
+				fEq5678.set_value(1, computefEq(rho, weight[6], float2{ dirX[6], dirY[6] }, u));
+				fEq5678.set_value(2, computefEq(rho, weight[7], float2{ dirX[7], dirY[7] }, u));
+				fEq5678.set_value(3, computefEq(rho, weight[8], float2{ dirX[8], dirY[8] }, u));
 
 				f0 = (1 - om) * f0 + om * fEq0;
 				f1234 = (1 - om) * f1234 + om * fEq1234;
@@ -575,8 +624,8 @@ void Raycaster::runOnCPU() {
 			// Propagate
 			// New positions to write (Each thread will write 8 values)
 
-			int8 x8 = int8(id.x());
-			int8 y8 = int8(id.y());
+			int8 x8 = int8(id.get_value(0));
+			int8 y8 = int8(id.get_value(1));
 			int8 width8 = int8(width());
 
 			int8 nX = x8 + int8(dirX[1], dirX[2], dirX[3], dirX[4], dirX[5], dirX[6], dirX[7], dirX[8]);
@@ -586,47 +635,64 @@ void Raycaster::runOnCPU() {
 			// Write center distribution to thread's location
 			of0[pos] = f0;
 
-			int t1 = id.x() < uint(width() - 1); // Not on Right boundary
-			int t4 = id.y() > uint(0);                      // Not on Upper boundary
-			int t3 = id.x() > uint(0);                      // Not on Left boundary
-			int t2 = id.y() < uint(height() - 1); // Not on lower boundary
+			int t1 = id.get_value(0) < int(width() - 1); // Not on Right boundary
+			int t4 = id.get_value(1) > int(0);                      // Not on Upper boundary
+			int t3 = id.get_value(0) > int(0);                      // Not on Left boundary
+			int t2 = id.get_value(1) < int(height() - 1); // Not on lower boundary
 
 			// Propagate to right cell
-			if (t1)
-				of1234[nPos.s0()].x() = f1234.x();
+			if (t1) {
+				of1234[nPos.get_value(0)].set_value(0, f1234.get_value(0));
+				//qDebug() << "t1" << of1234[nPos.get_value(0)].get_value(0) << "\n";
+			}
 
 			// Propagate to Lower cell
-			if (t2)
-				of1234[nPos.s1()].y() = f1234.y();
+			if (t2) {
+				of1234[nPos.get_value(1)].set_value(1, f1234.get_value(1));
+				//qDebug() << "t2" << of1234[nPos.get_value(1)].get_value(1) << "\n";
+			}
 
 			// Propagate to left cell
-			if (t3)
-				of1234[nPos.s2()].z() = f1234.z();
+			if (t3) {
+				of1234[nPos.get_value(2)].set_value(2, f1234.get_value(2));
+				//qDebug() << "t3" << of1234[nPos.get_value(2)].get_value(2) << "\n";
+			}
 
 			// Propagate to Upper cell
-			if (t4)
-				of1234[nPos.s3()].w() = f1234.w();
+			if (t4) {
+				of1234[nPos.get_value(3)].set_value(3, f1234.get_value(3));
+				//qDebug() << "t4" << of1234[nPos.get_value(3)].get_value(3) << "\n";
+			}
 
 			// Propagate to Lower-Right cell
-			if (t1 && t2)
-				of5678[nPos.s4()].x() = f5678.x();
+			if (t1 && t2) {
+				of5678[nPos.get_value(4)].set_value(0, f5678.get_value(0));
+				//qDebug() << "t5" << nPos.get_value(4) << "\n";
+				//qDebug() << "t5" << of5678[nPos.get_value(4)].get_value(0) << "\n";
+			}
 
 			// Propogate to Lower-Left cell
-			if (t2 && t3)
-				of5678[nPos.s5()].y() = f5678.y();
+			if (t2 && t3) {
+				of5678[nPos.get_value(5)].set_value(1, f5678.get_value(1));
+				//qDebug() << "t6" << of5678[nPos.get_value(5)].get_value(1) << "\n";
+			}
 
 			// Propagate to Upper-Left cell
-			if (t3 && t4)
-				of5678[nPos.s6()].z() = f5678.z();
+			if (t3 && t4) {
+				of5678[nPos.get_value(6)].set_value(2, f5678.get_value(2));
+				//qDebug() << "t7" << of5678[nPos.get_value(6)].get_value(2) << "\n";
+			}
 
 			// Propagate to Upper-Right cell
-			if (t4 && t1)
-				of5678[nPos.s7()].w() = f5678.w();
+			if (t4 && t1) {
+				of5678[nPos.get_value(7)].set_value(3, f5678.get_value(3));
+				//qDebug() << "t8" << of5678[nPos.get_value(7)].get_value(3) << "\n";
+			}
 
 			auto getColor = [](float2 inVelocity, bool isBoundary) {
 				float4 color = { 0.f, 0.f, 0.f, 1.f };
 
-				// creat a color scale
+				// creat a color scale (use 4th value now for magnitude, later set the alpha channel here)
 				float4 color1{ 0, 0, 0, 0.0 };
 				float4 color2{ 0, 0, 1, 0.2 };
 				float4 color3{ 0, 1, 1, 0.4 };
@@ -643,11 +709,11 @@ void Raycaster::runOnCPU() {
 					int i = 0;
 					float w;
 
-					if (velocityMangitude < color1.w())
+					if (velocityMangitude < color1.get_value(3))
 					{
 						color = color1;
 					}
-					else if (velocityMangitude >= color6.w())
+					else if (velocityMangitude >= color6.get_value(3))
 					{
 						color = color6;
 					}
@@ -655,35 +721,35 @@ void Raycaster::runOnCPU() {
 					{
 						float4 colorBoundaryStart;
 						float4 colorBoundaryEnd;
-						if ((float)color1.w() <= velocityMangitude && velocityMangitude < color2.w()) {
+						if ((float)color1.get_value(3) <= velocityMangitude && velocityMangitude < color2.get_value(3)) {
 							colorBoundaryStart = color1;
 							colorBoundaryEnd = color2;
 						}
-						else if ((float)color2.w() <= velocityMangitude && velocityMangitude < color3.w()) {
+						else if ((float)color2.get_value(3) <= velocityMangitude && velocityMangitude < color3.get_value(3)) {
 							colorBoundaryStart = color2;
 							colorBoundaryEnd = color3;
 
 						}
-						else if ((float)color3.w() <= velocityMangitude && velocityMangitude < color4.w()) {
+						else if ((float)color3.get_value(3) <= velocityMangitude && velocityMangitude < color4.get_value(3)) {
 							colorBoundaryStart = color3;
 							colorBoundaryEnd = color4;
 						}
-						else if ((float)color4.w() <= velocityMangitude && velocityMangitude < color5.w()) {
+						else if ((float)color4.get_value(3) <= velocityMangitude && velocityMangitude < color5.get_value(3)) {
 							colorBoundaryStart = color4;
 							colorBoundaryEnd = color5;
 						}
-						else if ((float)color5.w() <= velocityMangitude && velocityMangitude < color6.w()) {
+						else if ((float)color5.get_value(3) <= velocityMangitude && velocityMangitude < color6.get_value(3)) {
 							colorBoundaryStart = color5;
 							colorBoundaryEnd = color6;
 						}
 
 						// linear interpolation
-						w = (velocityMangitude - colorBoundaryStart.w()) / (colorBoundaryEnd.w() - colorBoundaryStart.w());
+						w = (velocityMangitude - colorBoundaryStart.get_value(3)) / (colorBoundaryEnd.get_value(3) - colorBoundaryStart.get_value(3));
 						color = (1 - w) * colorBoundaryStart + w * colorBoundaryEnd;
 					}
 				}
 				// set alpha to 1;
-				color.w() = 1.f;
+				color.set_value(3, 1.f);
 
 				return color * 255;
 			};
@@ -692,6 +758,11 @@ void Raycaster::runOnCPU() {
 
 		}
 	}
+
+	std::swap(f0_buffers[Buffer::Front], f0_buffers[Buffer::Back]);
+	std::swap(f1234_buffers[Buffer::Front], f1234_buffers[Buffer::Back]);
+	std::swap(f5678_buffers[Buffer::Front], f5678_buffers[Buffer::Back]);
+	testOutputs();
 
 
 
@@ -716,8 +787,8 @@ void Raycaster::updateScene()
 	//         
 	//           See: opencl-1.2-extensions.pdf (Rev. 15. Chapter 9.8.5)
 
-	/*runOnCPU();
-	return;*/
+	//runOnCPU();
+	//return;
 
 	cl::Event acquire, release;
 	
@@ -764,7 +835,7 @@ void Raycaster::updateScene()
 				auto setPixelForNewLattice = [=](float4 in) { new_lattice.write((int2)i.get_id(), in); };
 
 				int2 id = (int2)i.get_id();
-				int pos = id.x() + width * id.y();
+				int pos = id.get_value(0) + width * id.get_value(1);
 
 				// Read input distributions
 				float f0 = if0[pos];
@@ -790,22 +861,27 @@ void Raycaster::updateScene()
 
 					rho = 0;
 					u = float2{ 0.f, 0.f };
-				} 
+				}
 				// fluid
-				else 
+				else
 				{
 					// Compute rho and u
 					// Rho is computed by doing a reduction on f
-					rho = f0 + f1234.x() + f1234.y() + f1234.z() + f1234.w() + f5678.x() + f5678.y() + f5678.z() + f5678.w();
+					rho = f0 + f1234.get_value(0) + f1234.get_value(1) + f1234.get_value(2) + f1234.get_value(3)
+						+ f5678.get_value(0) + f5678.get_value(1) + f5678.get_value(2) + f5678.get_value(3);
 
 					// Compute velocity
 
 					// TODO: check if I use f1234.get_value(index) instead
-					u.x() = (f1234.x() * float(dirX[1])  + f1234.y() * float(dirX[2]) + f1234.z() * float(dirX[3]) + f1234.w() * float(dirX[4])
-						    + f5678.x() * float(dirX[5]) + f5678.y() * float(dirX[6]) + f5678.z() * float(dirX[7]) + f5678.w() * float(dirX[8])  ) / rho;
+					float uX = (f1234.get_value(0) * float(dirX[1]) + f1234.get_value(1) * float(dirX[2]) + f1234.get_value(2) * float(dirX[3]) + f1234.get_value(3) * float(dirX[4])
+						+ f5678.get_value(0) * float(dirX[5]) + f5678.get_value(1) * float(dirX[6]) + f5678.get_value(2) * float(dirX[7]) + f5678.get_value(3) * float(dirX[8])) / rho;
 
-					u.y() = (f1234.x() * float(dirY[1]) + f1234.y() * float(dirY[2]) + f1234.z() * float(dirY[3]) + f1234.w() * float(dirY[4])
-						   + f5678.x() * float(dirY[5]) + f5678.y() * float(dirY[6]) + f5678.z() * float(dirY[7]) + f5678.w() * float(dirY[8])) / rho;
+					u.set_value(0, uX);
+
+					float uY = (f1234.get_value(0) * float(dirY[1]) + f1234.get_value(1) * float(dirY[2]) + f1234.get_value(2) * float(dirY[3]) + f1234.get_value(3) * float(dirY[4])
+						+ f5678.get_value(0) * float(dirY[5]) + f5678.get_value(1) * float(dirY[6]) + f5678.get_value(2) * float(dirY[7]) + f5678.get_value(3) * float(dirY[8])) / rho;
+
+					u.set_value(1, uY);
 
 					float4 fEq1234;	// Stores feq 
 					float4 fEq5678;
@@ -819,17 +895,18 @@ void Raycaster::updateScene()
 					};
 
 					// Compute fEq
-					fEq0 = computefEq(rho, weight[0], float2{0, 0 }, u);
-					fEq1234.x() = computefEq(rho, weight[1], float2{dirX[1], dirY[1] }, u);
-					fEq1234.y() = computefEq(rho, weight[2], float2{dirX[2], dirY[2] }, u);
-					fEq1234.z() = computefEq(rho, weight[3], float2{dirX[3], dirY[3] }, u);
-					fEq1234.w() = computefEq(rho, weight[4], float2{dirX[4], dirY[4] }, u);
-					fEq5678.x() = computefEq(rho, weight[5], float2{dirX[5], dirY[5] }, u);
-					fEq5678.y() = computefEq(rho, weight[6], float2{dirX[6], dirY[6] }, u);
-					fEq5678.z() = computefEq(rho, weight[7], float2{dirX[7], dirY[7] }, u);
-					fEq5678.w() = computefEq(rho, weight[8], float2{dirX[8], dirY[8] }, u);
+					fEq0 = computefEq(rho, weight[0], float2{ 0, 0 }, u);
+					fEq1234.set_value(0, computefEq(rho, weight[1], float2{ dirX[1], dirY[1] }, u));
+					fEq1234.set_value(1, computefEq(rho, weight[2], float2{ dirX[2], dirY[2] }, u));
+					fEq1234.set_value(2, computefEq(rho, weight[3], float2{ dirX[3], dirY[3] }, u));
+					fEq1234.set_value(3, computefEq(rho, weight[4], float2{ dirX[4], dirY[4] }, u));
 
-					f0 =	(1 - om) * f0 + om * fEq0;
+					fEq5678.set_value(0, computefEq(rho, weight[5], float2{ dirX[5], dirY[5] }, u));
+					fEq5678.set_value(1, computefEq(rho, weight[6], float2{ dirX[6], dirY[6] }, u));
+					fEq5678.set_value(2, computefEq(rho, weight[7], float2{ dirX[7], dirY[7] }, u));
+					fEq5678.set_value(3, computefEq(rho, weight[8], float2{ dirX[8], dirY[8] }, u));
+
+					f0 = (1 - om) * f0 + om * fEq0;
 					f1234 = (1 - om) * f1234 + om * fEq1234;
 					f5678 = (1 - om) * f5678 + om * fEq5678;
 				}
@@ -838,9 +915,9 @@ void Raycaster::updateScene()
 
 				// Propagate
 				// New positions to write (Each thread will write 8 values)
-				
-				int8 x8 = int8(id.x());
-				int8 y8 = int8(id.y());
+
+				int8 x8 = int8(id.get_value(0));
+				int8 y8 = int8(id.get_value(1));
 				int8 width8 = int8(width);
 
 				int8 nX = x8 + int8(dirX[1], dirX[2], dirX[3], dirX[4], dirX[5], dirX[6], dirX[7], dirX[8]);
@@ -850,44 +927,52 @@ void Raycaster::updateScene()
 				// Write center distribution to thread's location
 				of0[pos] = f0;
 
-				int t1 = id.x() < int(width - 1); // Not on Right boundary
-				int t4 = id.y() > int(0);                      // Not on Upper boundary
-				int t3 = id.x() > int(0);                      // Not on Left boundary
-				int t2 = id.y() < int(height - 1); // Not on lower boundary
+				int t1 = id.get_value(0) < int(width - 1); // Not on Right boundary
+				int t4 = id.get_value(1) > int(0);                      // Not on Upper boundary
+				int t3 = id.get_value(0) > int(0);                      // Not on Left boundary
+				int t2 = id.get_value(1) < int(height - 1); // Not on lower boundary
 
 				// Propagate to right cell
-				if (t1)
-					of1234[nPos.s0()].x() = f1234.x();
+				if (t1) {
+					of1234[nPos.get_value(0)].set_value(0, f1234.get_value(0));
+				}
 
 				// Propagate to Lower cell
-				if (t2)
-					of1234[nPos.s1()].y() = f1234.y();
+				if (t2) {
+					of1234[nPos.get_value(1)].set_value(1, f1234.get_value(1));
+				}
 
 				// Propagate to left cell
-				if (t3)
-					of1234[nPos.s2()].z() = f1234.z();
+				if (t3) {
+					of1234[nPos.get_value(2)].set_value(2, f1234.get_value(2));
+				}
 
 				// Propagate to Upper cell
-				if (t4)
-					of1234[nPos.s3()].w() = f1234.w();
+				if (t4) {
+					of1234[nPos.get_value(3)].set_value(3, f1234.get_value(3));
+				}
 
 				// Propagate to Lower-Right cell
-				if (t1 && t2)
-					of5678[nPos.s4()].x() = f5678.x();
+				if (t1 && t2) {
+					of5678[nPos.get_value(4)].set_value(0, f5678.get_value(0));
+				}
 
 				// Propogate to Lower-Left cell
-				if (t2 && t3)
-					of5678[nPos.s5()].y() = f5678.y();
+				if (t2 && t3) {
+					of5678[nPos.get_value(5)].set_value(1, f5678.get_value(1));
+				}
 
 				// Propagate to Upper-Left cell
-				if (t3 && t4)
-					of5678[nPos.s6()].z() = f5678.z();
+				if (t3 && t4) {
+					of5678[nPos.get_value(6)].set_value(2, f5678.get_value(2));
+				}
 
 				// Propagate to Upper-Right cell
-				if (t4 && t1)
-					of5678[nPos.s7()].w() = f5678.w();
+				if (t4 && t1) {
+					of5678[nPos.get_value(7)].set_value(3, f5678.get_value(3));
+				}
 
-				auto getColor = [](float2 inVelocity, bool isBoundary){
+				auto getColor = [](float2 inVelocity, bool isBoundary) {
 					float4 color = { 0.f, 0.f, 0.f, 1.f };
 
 					// creat a color scale (use 4th value now for magnitude, later set the alpha channel here)
@@ -907,11 +992,11 @@ void Raycaster::updateScene()
 						int i = 0;
 						float w;
 
-						if (velocityMangitude < color1.w())
+						if (velocityMangitude < color1.get_value(3))
 						{
 							color = color1;
 						}
-						else if (velocityMangitude >= color6.w())
+						else if (velocityMangitude >= color6.get_value(3))
 						{
 							color = color6;
 						}
@@ -919,35 +1004,35 @@ void Raycaster::updateScene()
 						{
 							float4 colorBoundaryStart;
 							float4 colorBoundaryEnd;
-							if ((float)color1.w() <= velocityMangitude && velocityMangitude < color2.w()) {
+							if ((float)color1.get_value(3) <= velocityMangitude && velocityMangitude < color2.get_value(3)) {
 								colorBoundaryStart = color1;
 								colorBoundaryEnd = color2;
 							}
-							else if ((float)color2.w() <= velocityMangitude && velocityMangitude < color3.w()) {
+							else if ((float)color2.get_value(3) <= velocityMangitude && velocityMangitude < color3.get_value(3)) {
 								colorBoundaryStart = color2;
 								colorBoundaryEnd = color3;
-							
+
 							}
-							else if ((float)color3.w() <= velocityMangitude && velocityMangitude < color4.w()) {
+							else if ((float)color3.get_value(3) <= velocityMangitude && velocityMangitude < color4.get_value(3)) {
 								colorBoundaryStart = color3;
 								colorBoundaryEnd = color4;
 							}
-							else if ((float)color4.w() <= velocityMangitude && velocityMangitude < color5.w()) {
+							else if ((float)color4.get_value(3) <= velocityMangitude && velocityMangitude < color5.get_value(3)) {
 								colorBoundaryStart = color4;
 								colorBoundaryEnd = color5;
 							}
-							else if ((float)color5.w() <= velocityMangitude && velocityMangitude < color6.w()) {
+							else if ((float)color5.get_value(3) <= velocityMangitude && velocityMangitude < color6.get_value(3)) {
 								colorBoundaryStart = color5;
 								colorBoundaryEnd = color6;
 							}
-							
+
 							// linear interpolation
-							w = (velocityMangitude - colorBoundaryStart.w()) / (colorBoundaryEnd.w() - colorBoundaryStart.w());
+							w = (velocityMangitude - colorBoundaryStart.get_value(3)) / (colorBoundaryEnd.get_value(3) - colorBoundaryStart.get_value(3));
 							color = (1 - w) * colorBoundaryStart + w * colorBoundaryEnd;
 						}
 					}
 					// set alpha to 1;
-					color.w() = 1.f;
+					color.set_value(3, 1.f);
 
 					return color * 255;
 				};
@@ -979,7 +1064,6 @@ void Raycaster::updateScene()
 	if (!cl_khr_gl_event_supported) cl::finish();
 	else release.wait();
 
-	//testOutputs();
 
 	// Swap front and back buffer handles
 	std::swap(CL_latticeImages[Front], CL_latticeImages[Back]);
@@ -999,37 +1083,33 @@ void Raycaster::testOutputs() {
 	auto f1234 = f1234_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
 	auto f5678 = f5678_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
 
-	auto e = 0.0001f;
+	std::ofstream of0_file("of.txt");
+	std::ofstream of1234_file("of1234.txt");
+	std::ofstream of5678_file("of5678.txt");
 
-	bool flag0 = true;
-	bool flag1234 = true;
-	bool flag5678 = true;
+
 	for (int i = 0; i < f0.get_count(); i++) {
-		if (((float)f0[i] - F0_EQ) > e) {
-			flag0 = false;
-			break;
-		}
+		of0_file << (float)f0[i] << "\n";
 	}
 
 	for (int i = 0; i < f1234.get_count(); i++) {
-		if (((float)f1234[i].x() - F1234_EQ) > e || ((float)f1234[i].y() - F1234_EQ) > e || ((float)f1234[i].z() - F1234_EQ) > e
-			|| ((float)f1234[i].w() - F1234_EQ) > e) {
-			break;
-			flag1234 = false;
-		}
+		//qDebug() << f1234[i].get_value(0) << "\n";
+		of1234_file << f1234[i].get_value(0) << "\n";
+		of1234_file << f1234[i].get_value(1) << "\n";
+		of1234_file << f1234[i].get_value(2) << "\n";
+		of1234_file << f1234[i].get_value(3) << "\n";
 	}
 
 	for (int i = 0; i < f5678.get_count(); i++) {
-		if (((float)f5678[i].x() - F5678_EQ) > e || ((float)f5678[i].y() - F5678_EQ) > e || ((float)f5678[i].z() - F5678_EQ) > e
-			|| ((float)f5678[i].w() - F5678_EQ) > e) {
-			flag5678 = false;
-		}
+		of5678_file << f5678[i].get_value(0) << "\n";
+		of5678_file << f5678[i].get_value(1) << "\n";
+		of5678_file << f5678[i].get_value(2) << "\n";
+		of5678_file << f5678[i].get_value(3) << "\n";
 	}
 
-	if (flag0 && flag1234 && flag5678)
-		qDebug() << "Test passed" << "\n";
-	else
-		qDebug() << "Test failed" << "\n";
+	of0_file.close();
+	of1234_file.close();
+	of5678_file.close();
 }
 
 
