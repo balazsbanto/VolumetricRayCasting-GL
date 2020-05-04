@@ -73,7 +73,7 @@ public:
     bool* type_host;
 
     // Output velocity buffer
-    cl::sycl::buffer<cl::sycl::float2, 1> velocity_buffer;
+    std::unique_ptr < cl::sycl::buffer<cl::sycl::float2, 1>> velocity_buffer;
     
     // 0 - fluid, 1 - boundary
     cl::sycl::buffer<bool, 1>  type_buffer;
@@ -92,9 +92,11 @@ public:
     // helper function
     void resetLBM();
     size_t getMeshSize();
-    float computefEq(float weight, cl::sycl::float2 dir, float rho, cl::sycl::float2 velocity);
     void runOnCPU();
-    void testOutputs();
+    void writeOutputsToFile();
+    void writeOutputsToFile_and_setNewInputAtFileindex3();
+    void swapBuffers();
+    void setInput();
     // END LBM
 
 private:
