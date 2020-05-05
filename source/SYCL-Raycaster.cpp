@@ -209,7 +209,7 @@ void Raycaster::render()
     glFuncs->glClear(GL_COLOR_BUFFER_BIT);
 
     // Draw
-    if(!sp->bind()) qWarning("QGripper: Failed to bind shaderprogram");
+    if(!sp->bind()) qWarning("QRaycaster: Failed to bind shaderprogram");
     vao->bind();
 
     texs[Buffer::Front]->bind();
@@ -232,7 +232,7 @@ void Raycaster::render()
 // Override unimplemented InteropWindow function
 void Raycaster::render(QPainter* painter)
 {
-    QString text("QGripper: ");
+    QString text("QRaycaster: ");
     text.append("IPS = ");
     text.append(QString::number(getActIPS()));
     text.append(" | FPS = ");
@@ -594,7 +594,7 @@ const auto colorFunction = [](cl::sycl::float2 inVelocity, bool isBoundary) {
 	// set alpha to 1;
 	color.set_value(3, 1.f);
 
-	return color * 255;
+	return color ;
 };
 
 
@@ -919,7 +919,7 @@ void Raycaster::swapBuffers() {
 
 void Raycaster::writeOutputsToFile() {
 	//fileIndex++;
-	//return;
+	return;
 
 	auto f0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
 	auto f1234 = f1234_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
