@@ -16,7 +16,7 @@ public:
 		QWindow* parent = 0);
 	~LatticeBoltzmann2DRaycaster() = default;
 
-	virtual virtual void mouseDrag(QMouseEvent* event_in) override;
+	virtual void mouseDragImpl(QMouseEvent* event_in) override;
 	virtual virtual void resetScene() override;
 	virtual void updateSceneImpl() override;
 	virtual void swapDataBuffers() override;

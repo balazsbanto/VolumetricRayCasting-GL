@@ -264,7 +264,7 @@ LatticeBoltzmann2DRaycaster::LatticeBoltzmann2DRaycaster(std::size_t plat,
 {
 }
 
-void LatticeBoltzmann2DRaycaster::mouseDrag(QMouseEvent* event_in) {
+void LatticeBoltzmann2DRaycaster::mouseDragImpl(QMouseEvent* event_in) {
 	using namespace cl::sycl;
 
 	/*phi = (event_in->x() - mousePos.x());
@@ -311,9 +311,6 @@ void LatticeBoltzmann2DRaycaster::mouseDrag(QMouseEvent* event_in) {
 	qDebug() << "mousePos: " << mousePos.x() << " " <<  mousePos.y() ;
 	qDebug() << "phi: " << phi ;
 	qDebug() << "theta: " << theta;*/
-
-	Raycaster::mouseDrag(event_in);
-
 }
 
 void LatticeBoltzmann2DRaycaster::resetScene() {

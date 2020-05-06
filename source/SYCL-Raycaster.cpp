@@ -281,12 +281,12 @@ bool Raycaster::event(QEvent *event_in)
 // Input handler function
 void Raycaster::mouseDrag(QMouseEvent* event_in)
 {
+    mouseDragImpl(event_in);
+
 	needMatrixReset = true;
 
 	if (!getAnimating()) renderNow();
 }
-
-
 
 void Raycaster::setVRMatrices() {
 
@@ -418,12 +418,6 @@ void Raycaster::swapBuffers() {
 	std::swap(texs[Front], texs[Back]);
 
     swapDataBuffers();
-}
-
-void Raycaster::swapDataBuffers(){
-}
-
-void Raycaster::writeOutputsToFile() {
 }
 
 

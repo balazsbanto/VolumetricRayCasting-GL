@@ -54,14 +54,16 @@ public:
     virtual bool event(QEvent *event_in) override;
 
     // helper function
-    virtual void resetScene() = 0;
-    virtual void mouseDrag(QMouseEvent* event_in) = 0;  // Handle mouse dragging
+    virtual void resetScene() {};
+    virtual void mouseDragImpl(QMouseEvent* event_in) {};
+    virtual void swapDataBuffers() {};
+    virtual void writeOutputsToFile() {};
     virtual void updateSceneImpl() = 0;  
 
     size_t getMeshSize();
     void swapBuffers();
-    virtual void swapDataBuffers();
-    virtual void writeOutputsToFile();
+    void mouseDrag(QMouseEvent* event_in);  // Handle mouse dragging
+
 
 protected:
     enum Buffer
@@ -71,6 +73,8 @@ protected:
     };
 
     cl::sycl::queue compute_queue;          // CommandQueue
+    glm::mat4 m_viewToWorldMtx; // Identity
+    glm::vec3 m_vecEye;
 
 
     QPoint mousePos;                        // Variables to enable dragging
@@ -103,8 +107,6 @@ private:
 
     void setMatrices();                     // Update shader matrices
 
-	glm::mat4 m_viewToWorldMtx; // Identity
-	glm::vec3 m_vecEye;
 	glm::vec3 m_vecTarget;
 	glm::vec3 m_vecUp;
 
