@@ -31,9 +31,6 @@
 #include <memory>       // std::unique_ptr
 
 
-namespace kernels { struct RaycasterStep; struct Test; struct Lbm; }
-
-
 class Raycaster : public InteropWindow
 {
     Q_OBJECT
@@ -56,56 +53,32 @@ public:
     virtual void resizeGL(QResizeEvent* event_in) override;
     virtual bool event(QEvent *event_in) override;
 
-    // LBM D2Q9
-    // (1/relaxation time) Related to viscosity 
-    float omega = 1.2f;
-    
-    //  Distribution Buffers
-    std::array < std::unique_ptr<cl::sycl::buffer<float, 1> >, 2 > f0_buffers;
-    std::array < std::unique_ptr<cl::sycl::buffer<cl::sycl::float4, 1>>, 2 > f1234_buffers;
-    std::array < std::unique_ptr<cl::sycl::buffer<cl::sycl::float4, 1>>, 2 > f5678_buffers;
-    
-    // Host vectors
-    std::array < std::vector<float> , 2 > f0_host;
-    std::array < std::vector<cl::sycl::float4>, 2 > f1234_host;
-    std::array < std::vector<cl::sycl::float4>, 2 > f5678_host;
-    std::vector<cl::sycl::float2> velocity_host;
-    bool* type_host;
-
-    // Output velocity buffer
-    std::unique_ptr < cl::sycl::buffer<cl::sycl::float2, 1>> velocity_buffer;
-    
-    // 0 - fluid, 1 - boundary
-    cl::sycl::buffer<bool, 1>  type_buffer;
-
-    // Unit direction vectors and their buffers
-    std::vector<int> h_dirX{ 0, 1, 0, -1,  0, 1, -1,  -1,  1 };
-    std::vector<int> h_dirY{ 0, 0, 1,  0, -1, 1,  1,  -1, -1 };
-
-    cl::sycl::buffer<int, 1> h_dirX_buffer;
-    cl::sycl::buffer<int, 1> h_dirY_buffer;
-    
-    // Weights
-    std::vector<float> w{ 4.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0 };
-    cl::sycl::buffer<float, 1> h_weigt_buffer;
-
     // helper function
-    void resetLBM();
+    virtual void resetScene() = 0;
+    virtual void mouseDrag(QMouseEvent* event_in) = 0;  // Handle mouse dragging
+    virtual void updateSceneImpl() = 0;  
+
     size_t getMeshSize();
-    void runOnCPU();
-    void writeOutputsToFile();
-    void writeOutputsToFile_and_setNewInputAtFileindex3();
     void swapBuffers();
-    void setInput();
-    // END LBM
+    virtual void swapDataBuffers();
+    virtual void writeOutputsToFile();
 
-private:
-
+protected:
     enum Buffer
     {
         Front = 0,
         Back = 1
     };
+
+    cl::sycl::queue compute_queue;          // CommandQueue
+
+
+    QPoint mousePos;                        // Variables to enable dragging
+    float dist, phi, theta;                 // Mouse polar coordinates
+    std::array<std::unique_ptr<cl::sycl::image<2>>, 2> latticeImages;   // Simulation data images
+
+
+private:
 
     std::size_t dev_id;
 
@@ -124,9 +97,6 @@ private:
     // SYCL related variables
     cl::sycl::context context;              // Context
     cl::sycl::device device;                // Device
-    cl::sycl::queue compute_queue;          // CommandQueue
-
-    std::array<std::unique_ptr<cl::sycl::image<2>>, 2> latticeImages;   // Simulation data images
 
     bool imageDrawn;                        // Whether image has been drawn since last iteration
     bool needMatrixReset;                   // Whether matrices need to be reset in shaders
@@ -141,8 +111,4 @@ private:
 	void setVRMatrices();
 
 	bool rightMouseButtonPressed;           // Variables to enable dragging
-	QPoint mousePos;                        // Variables to enable dragging
-	float dist, phi, theta;                 // Mouse polar coordinates
-	void mouseDrag(QMouseEvent* event_in);  // Handle mouse dragging
-
 };

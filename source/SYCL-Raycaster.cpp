@@ -7,12 +7,9 @@
 #include <glm/gtx/transform.hpp>
 
 #include <iterator>
-#include <iomanip>
-#include <LatticeBoltzmann2D.hpp>
+
 //#include "glm/ext.hpp"
 //#include "C:/Diplomamunka/vcpkg/installed/x64-windows/include/glm/ext.hpp"
-
-int fileIndex = 0;
 
 Raycaster::Raycaster(std::size_t plat,
                std::size_t dev,
@@ -131,7 +128,7 @@ void Raycaster::initializeGL()
     for (const QOpenGLDebugMessage& message : log->loggedMessages()) qDebug() << message << "\n";
 
 	setMatrices();
-	resetLBM();
+	resetScene();
 
      qDebug("Raycaster: Leaving initializeGL");
 }
@@ -279,104 +276,11 @@ bool Raycaster::event(QEvent *event_in)
     }
 }
 
-
-void Raycaster::setInput() {
-	// Set a test velocity of { 0.4395f, 0.4395f } to (64, 10)
-	using namespace cl::sycl;
-	int x = 64;
-	int y = height() - 1 - 10;
-	int pos = x + width() * y;
-
-	auto if0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
-	auto if1234 = f1234_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
-	auto if5678 = f5678_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
-
-	auto velocity_out = velocity_buffer->get_access<access::mode::read>();
-
-	// Calculate density from input distribution
-	float rho = if0[pos]
-		+ if1234[pos].get_value(0) + if1234[pos].get_value(1) + if1234[pos].get_value(2) + if1234[pos].get_value(3) +
-		+if5678[pos].get_value(0) + if5678[pos].get_value(1) + if5678[pos].get_value(2) + if5678[pos].get_value(3);
-
-	// Increase the speed by input speed
-	//velocity_out[pos] += dragVelocity;
-
-	float2 newVel = velocity_out[pos] + float2{ 0.4395f, 0.4395f };;
-
-	// Calculate new distribution based on input speed
-
-	if0[pos] = computefEq(rho, w[0], cl::sycl::float2{ h_dirX[0], h_dirY[0] }, newVel);
-
-	if1234[pos].set_value(0, computefEq(rho, w[1], cl::sycl::float2{ h_dirX[1], h_dirY[1] }, newVel));
-	if1234[pos].set_value(1, computefEq(rho, w[2], cl::sycl::float2{ h_dirX[2], h_dirY[2] }, newVel));
-	if1234[pos].set_value(2, computefEq(rho, w[3], cl::sycl::float2{ h_dirX[3], h_dirY[3] }, newVel));
-	if1234[pos].set_value(3, computefEq(rho, w[4], cl::sycl::float2{ h_dirX[4], h_dirY[4] }, newVel));
-
-	if5678[pos].set_value(0, computefEq(rho, w[5], cl::sycl::float2{ h_dirX[5], h_dirY[5] }, newVel));
-	if5678[pos].set_value(1, computefEq(rho, w[6], cl::sycl::float2{ h_dirX[6], h_dirY[6] }, newVel));
-	if5678[pos].set_value(2, computefEq(rho, w[7], cl::sycl::float2{ h_dirX[7], h_dirY[7] }, newVel));
-	if5678[pos].set_value(3, computefEq(rho, w[8], cl::sycl::float2{ h_dirX[8], h_dirY[8] },  newVel));
-}
-
 // setCameraMatrices, ezeket csak a sycl-ben hasznalni. Ezt kellene meghivni akkor, amikor kapok egy uj eventet.
 
 // Input handler function
 void Raycaster::mouseDrag(QMouseEvent* event_in)
 {
-	using namespace cl::sycl;
-	/*qDebug() << "evenX " << event_in->x() << "oldX " << mousePos.x() << "\n";
-	qDebug() << "evenY " << event_in->y() << "oldY " << mousePos.y() << "\n";*/
-	// TODO: check how the sign in the y direction works
-	phi = (event_in->x() - mousePos.x());
-	theta = (event_in->y() - mousePos.y());
-
-	// check here which kernel we are running. Run this only in case of LBM
-	if (true) {
-		float2 dragVelocity{ event_in->x() - mousePos.x(),  mousePos.y() - event_in->y() };
-		auto magnitude = length(dragVelocity);
-		dragVelocity /= (1 + 2 * magnitude);
-
-		// Set new distributions
-		int x = event_in->x();
-		int y = height() - 1 - event_in->y();
-		int pos = x + width() * y;
-
-		auto if0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
-		auto if1234 = f1234_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
-		auto if5678 = f5678_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
-
-		auto velocity_out = velocity_buffer->get_access<access::mode::read>();
-
-		// Calculate density from input distribution
-		float rho = if0[pos]
-			+ if1234[pos].get_value(0) + if1234[pos].get_value(1) + if1234[pos].get_value(2) + if1234[pos].get_value(3) +
-			+if5678[pos].get_value(0) + if5678[pos].get_value(1) + if5678[pos].get_value(2) + if5678[pos].get_value(3);
-
-		// Increase the speed by input speed
-		//velocity_out[pos] += dragVelocity;
-
-		float2 newVel = velocity_out[pos] + dragVelocity;
-
-		// Calculate new distribution based on input speed
-
-		if0[pos] = computefEq(rho, w[0], cl::sycl::float2{ h_dirX[0], h_dirY[0] }, newVel);
-
-		if1234[pos].set_value(0, computefEq(rho, w[1], cl::sycl::float2{ h_dirX[1], h_dirY[1] }, newVel));
-		if1234[pos].set_value(1, computefEq(rho, w[2], cl::sycl::float2{ h_dirX[2], h_dirY[2] }, newVel));
-		if1234[pos].set_value(2, computefEq(rho, w[3], cl::sycl::float2{ h_dirX[3], h_dirY[3] }, newVel));
-		if1234[pos].set_value(3, computefEq(rho, w[4], cl::sycl::float2{ h_dirX[4], h_dirY[4] }, newVel));
-
-		if5678[pos].set_value(0, computefEq(rho, w[5], cl::sycl::float2{ h_dirX[5], h_dirY[5] }, newVel));
-		if5678[pos].set_value(1, computefEq(rho, w[6], cl::sycl::float2{ h_dirX[6], h_dirY[6] }, newVel));
-		if5678[pos].set_value(2, computefEq(rho, w[7], cl::sycl::float2{ h_dirX[7], h_dirY[7] }, newVel));
-		if5678[pos].set_value(3, computefEq(rho, w[8], cl::sycl::float2{ h_dirX[8], h_dirY[8] }, newVel));
-
-	}
-	/*qDebug() << "event_in: " << event_in->x() << " " << event_in->y();
-	qDebug() << "mousePos: " << mousePos.x() << " " <<  mousePos.y() ;
-	qDebug() << "phi: " << phi ;
-	qDebug() << "theta: " << theta;*/
-	
 	needMatrixReset = true;
 
 	if (!getAnimating()) renderNow();
@@ -449,107 +353,6 @@ size_t Raycaster::getMeshSize() {
 	return width() * height();
 }
 
-void Raycaster::resetLBM() {
-	using namespace cl::sycl;
-
-	// Initial velocity is 0
-	type_host =  new bool[getMeshSize()];
-	f0_host [Buffer::Front]   = std::vector<float>(getMeshSize(), F0_EQ );
-	f1234_host[Buffer::Front] = std::vector<float4>(getMeshSize(), float4{ F1234_EQ });
-	f5678_host[Buffer::Front] = std::vector<float4>(getMeshSize(), float4{ F5678_EQ });
-
-	f0_host[Buffer::Back]	 = f0_host[Buffer::Front];
-	f1234_host[Buffer::Back] = f1234_host[Buffer::Front];
-	f5678_host[Buffer::Back] = f5678_host[Buffer::Front];
-
-	f0_buffers[Buffer::Front] = std::make_unique<buffer<float, 1>>(f0_host[Buffer::Front].data(), range<1> {getMeshSize()});
-	f1234_buffers[Buffer::Front] = std::make_unique<buffer<float4, 1>>(f1234_host[Buffer::Front].data(), range<1> {getMeshSize()});
-	f5678_buffers[Buffer::Front] = std::make_unique<buffer<float4, 1>>(f5678_host[Buffer::Front].data(), range<1> { getMeshSize()});
-
-
-	f0_buffers[Buffer::Back] = std::make_unique<buffer<float, 1>>(f0_host[Buffer::Back].data(), range<1> {getMeshSize()});
-	f1234_buffers[Buffer::Back] = std::make_unique<buffer<float4, 1>>(f1234_host[Buffer::Back].data(), range<1> {getMeshSize()});
-	f5678_buffers[Buffer::Back] = std::make_unique<buffer<float4, 1>>(f5678_host[Buffer::Back].data(), range<1> { getMeshSize()});
-
-	velocity_host = std::vector<float2>(getMeshSize(), float2{ 0.f, 0.f });
-	velocity_buffer = std::make_unique< buffer<float2, 1>> ( velocity_host.data(), range<1> { getMeshSize()} );
-
-	// Vector with contants
-	h_dirX_buffer = buffer<int, 1>{ h_dirX.data(), range<1> {h_dirX.size()} };
-	h_dirY_buffer = buffer<int, 1>{ h_dirY.data(), range<1> {h_dirY.size()} };
-	h_weigt_buffer = buffer<float, 1>{ w.data(), range<1> {w.size()} };
-	
-
-	for (int y = 0; y < height(); y++) {
-		for (int x = 0; x < width(); x++) {
-
-			int pos = x + y * width();
-
-			// Initialize boundary cells
-			if (x == 0 || x == (width() - 1) || y == 0 || y == (height() - 1))
-			{
-				type_host[pos] = true;
-			}
-
-			// Initialize fluid cells
-			else
-			{
-				type_host[pos] = false;
-			}
-
-		}
-	}
-
-	type_buffer = buffer<bool, 1>{ type_host, range<1> {getMeshSize()} };
-
-	writeOutputsToFile();
-}
-
-
-void Raycaster::runOnCPU() {
-	using namespace cl::sycl;
-
-	auto if0 = f0_buffers[Buffer::Front]->get_access<access::mode::read>();
-	auto if1234 = f1234_buffers[Buffer::Front]->get_access<access::mode::read>();
-	auto if5678 = f5678_buffers[Buffer::Front]->get_access<access::mode::read>();
-	auto type = type_buffer.get_access<access::mode::read>();
-
-	// Output
-	auto of0 = f0_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
-	auto of1234 = f1234_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
-	auto of5678 = f5678_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
-	auto velocity_out = velocity_buffer->get_access<access::mode::discard_write>();
-
-
-	int screen_width = width();
-	int screen_height = height();
-
-	for (int y = 0; y < screen_height; y++) {
-		for (int x = 0; x < screen_width; x++) {
-
-			int2 id(x, y);
-			int pos = id.get_value(0) + screen_width * id.get_value(1);
-
-			auto cellAfterCollision = collide(Distributions{ if0[pos], if1234[pos], if5678[pos] }, type[pos]);
-
-			streamToNeighbours<access::target::host_buffer>(id, pos, screen_width, screen_height, cellAfterCollision.distributions, of0, of1234, of5678);
-			
-			velocity_out[pos] = cellAfterCollision.velocity;
-
-			auto finalPixelColor = colorFunction(cellAfterCollision.velocity, cellAfterCollision.cellType);
-
-
-			/*if (finalPixelColor.get_value(0) > 0  || finalPixelColor.get_value(1) > 0 || finalPixelColor.get_value(2) > 0 )
-				qDebug() << finalPixelColor.get_value(0) << " " << finalPixelColor.get_value(1) << " " << finalPixelColor.get_value(2) << finalPixelColor.get_value(3) << "\n";*/
-
-		}
-	}
-
-	swapBuffers();
-
-	writeOutputsToFile_and_setNewInputAtFileindex3();
-
-}
 
 // LBM
 void Raycaster::updateScene()
@@ -576,46 +379,7 @@ void Raycaster::updateScene()
 
 	try
 	{
-		compute_queue.submit([&](cl::sycl::handler& cgh)
-		{
-			// Input buffers
-			auto if0 = f0_buffers[Buffer::Front]->get_access<access::mode::read>(cgh);
-			auto if1234 = f1234_buffers[Buffer::Front]->get_access<access::mode::read>(cgh);
-			auto if5678 = f5678_buffers[Buffer::Front]->get_access<access::mode::read>(cgh);
-			auto type = type_buffer.get_access<access::mode::read>(cgh);
-			
-			// Output buffers
-			auto velocity_out = velocity_buffer->get_access<access::mode::discard_write>(cgh);
-			const auto of0 = f0_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
-			const auto of1234 = f1234_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
-			const auto of5678 = f5678_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
-
-			auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::discard_write>(cgh);
-
-			int screen_width = width();
-			int screen_height = height();
-
-
-			cgh.parallel_for<kernels::Lbm>(range<2>{ new_lattice.get_range() },
-				[=,  computefEq = computefEq, 	collide = collide, colorFunction = colorFunction, screen_width = screen_width, screen_height = screen_height](const item<2> i)
-			{
-
-				int2 id = (int2)i.get_id();
-
-				int pos = id.get_value(0) + screen_width * id.get_value(1);
-
-				auto cellAfterCollision = collide(Distributions{ if0[pos], if1234[pos], if5678[pos] }, type[pos]);
-
-				streamToNeighbours<access::target::global_buffer>(id, pos, screen_width, screen_height, cellAfterCollision.distributions, of0, of1234, of5678);
-
-				velocity_out[pos] = cellAfterCollision.velocity;	
-				auto finalPixelColor = colorFunction(cellAfterCollision.velocity, cellAfterCollision.cellType);
-
-				auto setPixelForNewLattice = [=](float4 in) { new_lattice.write(id, in); };
-				setPixelForNewLattice(finalPixelColor);
-
-			});
-		});
+        updateSceneImpl();
 	}
 	catch (cl::sycl::compile_program_error e)
 	{
@@ -643,68 +407,23 @@ void Raycaster::updateScene()
 	// Swap front and back buffer handles
 	swapBuffers();
 
-	writeOutputsToFile_and_setNewInputAtFileindex3();
+    writeOutputsToFile();
 
 	imageDrawn = false;
 }
 
-void Raycaster::writeOutputsToFile_and_setNewInputAtFileindex3() {
-	writeOutputsToFile();
-	if (fileIndex == 3) {
-		setInput();
-		writeOutputsToFile();
-	}
-}
 void Raycaster::swapBuffers() {
 	std::swap(CL_latticeImages[Front], CL_latticeImages[Back]);
 	std::swap(latticeImages[Front], latticeImages[Back]);
 	std::swap(texs[Front], texs[Back]);
 
-	std::swap(f0_buffers[Buffer::Front], f0_buffers[Buffer::Back]);
-	std::swap(f1234_buffers[Buffer::Front], f1234_buffers[Buffer::Back]);
-	std::swap(f5678_buffers[Buffer::Front], f5678_buffers[Buffer::Back]);
+    swapDataBuffers();
+}
+
+void Raycaster::swapDataBuffers(){
 }
 
 void Raycaster::writeOutputsToFile() {
-	//fileIndex++;
-	return;
-
-	auto f0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
-	auto f1234 = f1234_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
-	auto f5678 = f5678_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
-	auto velocity = velocity_buffer->get_access<cl::sycl::access::mode::read>();
-
-	std::ofstream of0_file("of0_" + std::to_string(fileIndex) + ".txt");
-	std::ofstream of1234_file("of1234_" + std::to_string(fileIndex) + ".txt");
-	std::ofstream of5678_file("of5678_" + std::to_string(fileIndex) + ".txt");
-	std::ofstream velocity_file("velocity_" + std::to_string(fileIndex) + ".txt");
-
-
-	for (int i = 0; i < f0.get_count(); i++) {
-		of0_file << std::setprecision(5) << (float)f0[i] << "\n";
-	}
-
-	for (int i = 0; i < f1234.get_count(); i++) {
-		//qDebug() << f1234[i].get_value(0) << "\n";
-		of1234_file << std::setprecision(5) << f1234[i].get_value(0) << "\t" << f1234[i].get_value(1) << "\t" << f1234[i].get_value(2) << "\t" << f1234[i].get_value(3) << "\n";
-
-	}
-
-	for (int i = 0; i < f5678.get_count(); i++) {
-		of5678_file << std::setprecision(5) << f5678[i].get_value(0) << "\t" << f5678[i].get_value(1) << "\t" << f5678[i].get_value(2) << "\t" << f5678[i].get_value(3) << "\n";
-	}
-
-	for (int i = 0; i < velocity.get_count(); i++) {
-		velocity_file << std::setprecision(5) << velocity[i].get_value(0) << "\t" << velocity[i].get_value(1) << "\n";
-	}
-
-
-	of0_file.close();
-	of1234_file.close();
-	of5678_file.close();
-	velocity_file.close();
-
-	fileIndex++;
 }
 
 

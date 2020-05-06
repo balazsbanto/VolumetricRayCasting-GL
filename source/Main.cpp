@@ -17,6 +17,8 @@
 #pragma warning( pop )
 #endif
 
+#include <LatticeBoltzmann2D.hpp>
+
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
@@ -56,7 +58,7 @@ int main(int argc, char *argv[])
 
     dev_type = CL_DEVICE_TYPE_GPU;
 
-    Raycaster raycaster(plat_id, dev_id, dev_type);
+    LatticeBoltzmann2DRaycaster raycaster(plat_id, dev_id, dev_type);
     raycaster.setGeometry(QRect(0, 0, 256, 256));
     raycaster.setVisibility(QWindow::Windowed);
     //raycaster.setVisibility(QWindow::Maximized);

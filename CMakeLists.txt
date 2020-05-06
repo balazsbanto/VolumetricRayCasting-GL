@@ -15,9 +15,11 @@ configure_file ("${CMAKE_CURRENT_SOURCE_DIR}/include/${Target_Name}-Config.in.hp
 # Specify source and header files
 set (Sources source/Main.cpp
              source/${Target_Name}.cpp
-             source/InteropWindow.cpp)
+             source/InteropWindow.cpp
+             source/LatticeBoltzmann2D.cpp)
 
 set (Headers include/InteropWindow.hpp
+             include/LatticeBoltzmann2D.hpp
              include/${Target_Name}.hpp
              ${CMAKE_CURRENT_BINARY_DIR}/include/${Target_Name}-Config.hpp)
 
@@ -54,7 +56,8 @@ set_target_properties(${Target_Name} PROPERTIES CXX_STANDARD 14
 
 # Apply the ComputeCpp compiler to select source files (containing SYCL code)
 add_sycl_to_target(TARGET ${Target_Name}
-                   SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/source/${Target_Name}.cpp)
+                   SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/source/${Target_Name}.cpp
+                           ${CMAKE_CURRENT_SOURCE_DIR}/source/LatticeBoltzmann2D.cpp)
 
 # Create source groups for IDE
 source_group ("Sources" FILES ${Sources})
