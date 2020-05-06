@@ -257,7 +257,7 @@ bool Raycaster::event(QEvent *event_in)
 	case QEvent::MouseMove:
 		mouse_event = static_cast<QMouseEvent*>(event_in);
 
-		if ((mouse_event->buttons() & Qt::MouseButton::LeftButton) && // If RMB is pressed AND
+		if ((mouse_event->buttons() & Qt::MouseButton::LeftButton) && // If LMB is pressed AND
 			(mousePos != mouse_event->pos()))                          // Mouse has moved 
 			mouseDrag(mouse_event);
 

@@ -10,7 +10,8 @@ SphericalHarmonics::SphericalHarmonics(std::size_t plat,
 }
 
 void SphericalHarmonics::mouseDragImpl(QMouseEvent* event_in) {
-
+	phi = (event_in->x() - mousePos.x());
+	theta = (event_in->y() - mousePos.y());
 }
 
 void SphericalHarmonics::updateSceneImpl() {
