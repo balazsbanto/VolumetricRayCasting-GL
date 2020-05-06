@@ -23,20 +23,11 @@ void SphericalHarmonics::updateSceneImpl() {
 			// density function(spherical harminics) inside the extent
 			auto densityFunc = [=](const float& r, const float& theta, const float& /*phi*/)
 			{
-#ifdef __SYCL_DEVICE_ONLY__
 				float sqrt3fpi = cl::sycl::sqrt(3.0f / M_PI);
 				//float val = 1.0f / 2.0f * sqrt3fpi * cl::sycl::cos(theta + phiii); // Y(l = 1, m = 0)
 				float val = 1.0f / 2.0f * sqrt3fpi * cl::sycl::cos(theta); // Y(l = 1, m = 0)
 				float result = cl::sycl::fabs(2 * cl::sycl::fabs(val) - r);
-#else
-				float sqrt3fpi = 1.0f;
-				float val = 1.0f;
-				float result = 1.0f;
 
-				(void)sqrt3fpi;
-				(void)r;
-				(void)theta;
-#endif
 				if (result < 0.01f)	// thickness of shell 
 					return val < 0 ? -1 : 1;
 				else
@@ -81,15 +72,11 @@ void SphericalHarmonics::updateSceneImpl() {
 				//{
 					// Convert to spherical coordinated
 					//float r = sqrt(location.x*location.x + location.y*location.y + location.z*location.z);
-#ifdef __SYCL_DEVICE_ONLY__
+
 				float r = cl::sycl::length(location);
 				float theta = cl::sycl::acos(location.z() / r); // *180 / 3.1415926f; // convert to degrees?
 				float phi = cl::sycl::atan2(y, x); // *180 / 3.1415926f;
-#else
-				float r = 0.f;
-				float theta = 0.f;
-				float phi = 0.f;
-#endif
+
 
 				cl::sycl::float4 color = colorFunc(densityFunc(r, theta, phi));
 
@@ -146,11 +133,8 @@ void SphericalHarmonics::updateSceneImpl() {
 				float t1 = -1E+36f;
 
 				glm::vec3 transformedCamRayDir = glm::vec3(ViewToWorldMtx * rayVec) - camPos;
-#ifdef __SYCL_DEVICE_ONLY__
 				cl::sycl::float3 transformedCamRayDirFloat3 = cl::sycl::normalize(cl::sycl::float3{ transformedCamRayDir.x, transformedCamRayDir.y, transformedCamRayDir.z });
-#else
-				cl::sycl::float3 transformedCamRayDirFloat3;
-#endif
+
 
 				auto getIntersections_lambda = [&t0, &t1](const cl::sycl::float3 rayorig, const cl::sycl::float3 raydir, const cl::sycl::float3 sphereCenter,
 					const float sphereRadius2) {
@@ -163,11 +147,8 @@ void SphericalHarmonics::updateSceneImpl() {
 						isIntersected = false;
 
 					}
-#ifdef __SYCL_DEVICE_ONLY__
 					float thc = cl::sycl::sqrt(sphereRadius2 - d2);
-#else
-					float thc = 0.f;
-#endif
+
 					t0 = tca - thc;
 					t1 = tca + thc;
 
