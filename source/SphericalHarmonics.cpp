@@ -2,38 +2,38 @@
 
 using namespace cl::sycl;
 
+
+const auto densityFunc = [](const float& r, const float& theta, const float& /*phi*/)
+{
+	float sqrt3fpi = cl::sycl::sqrt(3.0f / M_PI);
+	float val = 1.0f / 2.0f * sqrt3fpi * cl::sycl::cos(theta); // Y(l = 1, m = 0)
+	float result = cl::sycl::fabs(2 * cl::sycl::fabs(val) - r);
+
+	if (result < 0.01f)	// thickness of shell 
+		return val < 0 ? -1 : 1;
+	else
+		return 0;
+};
+
+// color according to the incoming density
+const auto colorFunc = [](const int density)
+{
+	if (density > 0)
+	{
+		return float4(0, 0, 1, 0); // blue
+	}
+	else if (density < 0)
+	{
+		return float4(1, 1, 0, 0); // yellow
+	}
+	else
+		return  float4(0, 0, 0, 0); // black
+};
+
 //		// Start raymarch lambda
-auto m_raymarch = [](const float3& camPos, const float3& rayDirection, const float startT, const float endT, const float deltaS)
+const auto m_raymarch = [](const float3& camPos, const float3& rayDirection, const float startT, const float endT, const float deltaS)
 {
 	int saturationThreshold = 0;
-	// example lambda functions that could be given by the user
-	// density function(spherical harminics) inside the extent
-	auto densityFunc = [=](const float& r, const float& theta, const float& /*phi*/)
-	{
-		float sqrt3fpi = cl::sycl::sqrt(3.0f / M_PI);
-		float val = 1.0f / 2.0f * sqrt3fpi * cl::sycl::cos(theta); // Y(l = 1, m = 0)
-		float result = cl::sycl::fabs(2 * cl::sycl::fabs(val) - r);
-
-		if (result < 0.01f)	// thickness of shell 
-			return val < 0 ? -1 : 1;
-		else
-			return 0;
-	};
-
-	// color according to the incoming density
-	auto colorFunc = [](const int density)
-	{
-		if (density > 0)
-		{
-			return float4(0, 0, 1, 0); // blue
-		}
-		else if (density < 0)
-		{
-			return float4(1, 1, 0, 0); // yellow
-		}
-		else
-			return  float4(0, 0, 0, 0); // black
-	};
 
 	float4 finalColor(0.0f, 0.0f, 0.0f, 0.0f);
 	float3 location(0.0f, 0.0f, 0.0f);
@@ -44,14 +44,14 @@ auto m_raymarch = [](const float3& camPos, const float3& rayDirection, const flo
 
 	while (current_t < endT)
 	{
-		location = location + deltaS * rayDirection;
+		location += deltaS * rayDirection;
 		current_t += deltaS;
 
 		// check if it is inside
 		//if (!IsOutside(location))
-		float x = location.x();
+		/*float x = location.x();
 		float y = location.y();
-		float z = location.z();
+		float z = location.z();*/
 		//if (x < extent.m_maxX)
 		//if ((x < extent.m_maxX) && y < (extent.m_maxY) && (z < extent.m_maxZ) &&
 		//	(x > extent.m_minX) && (y > extent.m_minY) && (z > extent.m_minZ))
@@ -60,8 +60,8 @@ auto m_raymarch = [](const float3& camPos, const float3& rayDirection, const flo
 			//float r = sqrt(location.x*location.x + location.y*location.y + location.z*location.z);
 
 		float r = cl::sycl::length(location);
-		float theta = cl::sycl::acos(location.z() / r); // *180 / 3.1415926f; // convert to degrees?
-		float phi = cl::sycl::atan2(y, x); // *180 / 3.1415926f;
+		float theta = cl::sycl::acos(location.get_value(2) / r); // *180 / 3.1415926f; // convert to degrees?
+		float phi = cl::sycl::atan2(location.get_value(1), location.get_value(0)); // *180 / 3.1415926f;
 
 
 		float4 color = colorFunc(densityFunc(r, theta, phi));
@@ -136,11 +136,10 @@ void SphericalHarmonics::updateSceneImpl() {
 			//float scaleFOV = tan(120.f / 2 * M_PI / 180);
 			// scaleFOV?
 			cgh.parallel_for<kernels::SphericalHarmonics_Kernel>(range<2>{ new_lattice.get_range() },
-				[=, ViewToWorldMtx = m_viewToWorldMtx, camPos = m_vecEye, sphereCenter = glm::vec3(0.f, 0.f, 0.f), sphereRadius2 = 1.96f, raymarch = m_raymarch, deltaS = 0.02f,
+				[=, ViewToWorldMtx = m_viewToWorldMtx, camPosGlm = m_vecEye, sphereCenter = glm::vec3(0.f, 0.f, 0.f), sphereRadius2 = 1.96f, raymarch = m_raymarch, deltaS = 0.02f,
 				getIntersections = getIntersections
 				](const item<2> i)
 			{
-				// Minden mehet a regivel, mert jelenleg nem kell az uv koordinate transzformalgatas
 				int2 pixelIndex = i.get_id();
 				auto setPixelForNewLattice = [=](float4 in) { new_lattice.write((int2)i.get_id(), in); };
 
@@ -148,21 +147,21 @@ void SphericalHarmonics::updateSceneImpl() {
 					(1 - 2 * (i[1] + 0.5f) / (float)new_lattice.get_range()[1]) /* * scaleFOV*/,
 					-1.0f, 1.0f);
 
-				glm::vec3 transformedCamRayDir = glm::vec3(ViewToWorldMtx * rayVec) - camPos;
-				float3 transformedCamRayDirFloat3 = cl::sycl::normalize(float3{ transformedCamRayDir.x, transformedCamRayDir.y, transformedCamRayDir.z });
+				glm::vec3 transformedCamRayDirGlm = glm::vec3(ViewToWorldMtx * rayVec) - camPosGlm;
+				float3 normalizedCamRayDir = cl::sycl::normalize(float3{ transformedCamRayDirGlm.x, transformedCamRayDirGlm.y, transformedCamRayDirGlm.z });
 
-				auto camPosFloat3 = float3(camPos.x, camPos.y, camPos.z);
-				auto spherIntersection = getIntersections(camPosFloat3, transformedCamRayDirFloat3,	float3(sphereCenter.x, sphereCenter.y, sphereCenter.z), sphereRadius2);
+				auto cameraPos = float3(camPosGlm.x, camPosGlm.y, camPosGlm.z);
+				auto spherIntersection = getIntersections(cameraPos, normalizedCamRayDir, float3(sphereCenter.x, sphereCenter.y, sphereCenter.z), sphereRadius2);
 
 				float4 pixelColor;
 				if (spherIntersection.isIntersected && spherIntersection.t0 > 0.0 && spherIntersection.t1 > 0.0)
 				{
-					pixelColor = raymarch(camPosFloat3, transformedCamRayDirFloat3, spherIntersection.t0, spherIntersection.t1, deltaS);
+					pixelColor = raymarch(cameraPos, normalizedCamRayDir, spherIntersection.t0, spherIntersection.t1, deltaS);
 				}
 				// if we are inside the spehere, we trace from the the ray's original position
 				else if (spherIntersection.isIntersected && spherIntersection.t1 > 0.f)
 				{
-					pixelColor = raymarch(camPosFloat3, transformedCamRayDirFloat3, 0.0, spherIntersection.t1, deltaS);
+					pixelColor = raymarch(cameraPos, normalizedCamRayDir, 0.0, spherIntersection.t1, deltaS);
 				}
 				else
 				{
