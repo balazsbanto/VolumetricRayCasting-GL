@@ -3,7 +3,7 @@
 using namespace cl::sycl;
 
 //		// Start raymarch lambda
-auto m_raymarch = [](const cl::sycl::float3& camPos, const cl::sycl::float3& rayDirection, const float startT, const float endT, const float deltaS)
+auto m_raymarch = [](const float3& camPos, const float3& rayDirection, const float startT, const float endT, const float deltaS)
 {
 	int saturationThreshold = 0;
 	// example lambda functions that could be given by the user
@@ -25,18 +25,18 @@ auto m_raymarch = [](const cl::sycl::float3& camPos, const cl::sycl::float3& ray
 	{
 		if (density > 0)
 		{
-			return cl::sycl::float4(0, 0, 1, 0); // blue
+			return float4(0, 0, 1, 0); // blue
 		}
 		else if (density < 0)
 		{
-			return cl::sycl::float4(1, 1, 0, 0); // yellow
+			return float4(1, 1, 0, 0); // yellow
 		}
 		else
-			return  cl::sycl::float4(0, 0, 0, 0); // black
+			return  float4(0, 0, 0, 0); // black
 	};
 
-	cl::sycl::float4 finalColor(0.0f, 0.0f, 0.0f, 0.0f);
-	cl::sycl::float3 location(0.0f, 0.0f, 0.0f);
+	float4 finalColor(0.0f, 0.0f, 0.0f, 0.0f);
+	float3 location(0.0f, 0.0f, 0.0f);
 
 	location = camPos + startT * rayDirection;
 
@@ -64,7 +64,7 @@ auto m_raymarch = [](const cl::sycl::float3& camPos, const cl::sycl::float3& ray
 		float phi = cl::sycl::atan2(y, x); // *180 / 3.1415926f;
 
 
-		cl::sycl::float4 color = colorFunc(densityFunc(r, theta, phi));
+		float4 color = colorFunc(densityFunc(r, theta, phi));
 
 
 		finalColor += color;
@@ -82,7 +82,7 @@ auto m_raymarch = [](const cl::sycl::float3& camPos, const cl::sycl::float3& ray
 	finalColor *= 255;
 
 
-	return cl::sycl::float4(finalColor.r(), finalColor.g(), finalColor.b(), 255.f);
+	return float4(finalColor.r(), finalColor.g(), finalColor.b(), 255.f);
 };
 
 struct SphereIntersection {
@@ -91,9 +91,9 @@ struct SphereIntersection {
 	float t1 = -1E+36f;
 
 };
-auto getIntersections = [](const cl::sycl::float3& rayorig, const cl::sycl::float3& raydir, const cl::sycl::float3& sphereCenter,
+auto getIntersections = [](const float3& rayorig, const float3& raydir, const float3& sphereCenter,
 	const float sphereRadius2) {
-	cl::sycl::float3 l = sphereCenter - rayorig;
+	float3 l = sphereCenter - rayorig;
 	float tca = cl::sycl::dot(l, raydir);
 	float d2 = cl::sycl::dot(l, l) - tca * tca;
 
@@ -130,8 +130,6 @@ void SphericalHarmonics::mouseDragImpl(QMouseEvent* event_in) {
 void SphericalHarmonics::updateSceneImpl() {
 		compute_queue.submit([&](cl::sycl::handler& cgh)
 		{
-			using namespace cl::sycl;
-
 			auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::write>(cgh);
 
 			auto aspectRatio = (float)new_lattice.get_range()[0] / new_lattice.get_range()[1];
@@ -151,12 +149,12 @@ void SphericalHarmonics::updateSceneImpl() {
 					-1.0f, 1.0f);
 
 				glm::vec3 transformedCamRayDir = glm::vec3(ViewToWorldMtx * rayVec) - camPos;
-				cl::sycl::float3 transformedCamRayDirFloat3 = cl::sycl::normalize(cl::sycl::float3{ transformedCamRayDir.x, transformedCamRayDir.y, transformedCamRayDir.z });
+				float3 transformedCamRayDirFloat3 = cl::sycl::normalize(float3{ transformedCamRayDir.x, transformedCamRayDir.y, transformedCamRayDir.z });
 
-				auto camPosFloat3 = cl::sycl::float3(camPos.x, camPos.y, camPos.z);
-				auto spherIntersection = getIntersections(camPosFloat3, transformedCamRayDirFloat3,	cl::sycl::float3(sphereCenter.x, sphereCenter.y, sphereCenter.z), sphereRadius2);
+				auto camPosFloat3 = float3(camPos.x, camPos.y, camPos.z);
+				auto spherIntersection = getIntersections(camPosFloat3, transformedCamRayDirFloat3,	float3(sphereCenter.x, sphereCenter.y, sphereCenter.z), sphereRadius2);
 
-				cl::sycl::float4 pixelColor;
+				float4 pixelColor;
 				if (spherIntersection.isIntersected && spherIntersection.t0 > 0.0 && spherIntersection.t1 > 0.0)
 				{
 					pixelColor = raymarch(camPosFloat3, transformedCamRayDirFloat3, spherIntersection.t0, spherIntersection.t1, deltaS);
@@ -168,7 +166,7 @@ void SphericalHarmonics::updateSceneImpl() {
 				}
 				else
 				{
-					pixelColor = cl::sycl::float4(0.f, 0.f, 0.f, 1.f);
+					pixelColor = float4(0.f, 0.f, 0.f, 1.f);
 				}
 
 				// seting rgb value for every pixel
