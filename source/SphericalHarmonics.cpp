@@ -6,13 +6,41 @@ const int Y = 1;
 const int Z = 2;
 const int W = 3;
 
+// Y(l = 1, m = 0)
+//const auto densityFunc = [](const float& r, const float& theta, const float& /*phi*/)
+//{
+//	//float sqrt3fpi = cl::sycl::sqrt(3.0f / M_PI);
+//	float val = 1.0f / 2.0f * float(cl::sycl::sqrt(3.0f / M_PI)) * float(cl::sycl::cos(theta)); 
+//	float result = cl::sycl::fabs(2 * cl::sycl::fabs(val) - r);
+//
+//	if (result < 0.01f)	// thickness of shell 
+//		return val < 0 ? -1 : 1;
+//	else
+//		return 0;
+//};
+
+// Y(l = 2, m = 0)
+//const auto densityFunc = [](const float& r, const float& theta, const float& /*phi*/)
+//{
+//	//float sqrt3fpi = cl::sycl::sqrt(3.0f / M_PI);
+//	float val = 1.0f / 4.0f * float(cl::sycl::sqrt(5.0f / M_PI)) * (3.f * cl::sycl::pow(float(cl::sycl::cos(theta)), 2.f) - 1);
+//	float result = cl::sycl::fabs(2 * cl::sycl::fabs(val) - r);
+//
+//	if (result < 0.01f)	// thickness of shell 
+//		return val < 0 ? -1 : 1;
+//	else
+//		return 0;
+//};
+
+
+// Y(l = 3, m = 0)
 const auto densityFunc = [](const float& r, const float& theta, const float& /*phi*/)
 {
-	float sqrt3fpi = cl::sycl::sqrt(3.0f / M_PI);
-	float val = 1.0f / 2.0f * sqrt3fpi * cl::sycl::cos(theta); // Y(l = 1, m = 0)
+	//float sqrt3fpi = cl::sycl::sqrt(3.0f / M_PI);
+	float val = 1.0f / 4.0f * float(cl::sycl::sqrt(7.0f / M_PI)) * (5.f * cl::sycl::pow(float(cl::sycl::cos(theta)), 3.f) - 3.f * float(cl::sycl::cos(theta)));
 	float result = cl::sycl::fabs(2 * cl::sycl::fabs(val) - r);
 
-	if (result < 0.01f)	// thickness of shell 
+	if (result < 0.05f)	// thickness of shell 
 		return val < 0 ? -1 : 1;
 	else
 		return 0;
@@ -137,8 +165,8 @@ void SphericalHarmonics::updateSceneImpl() {
 			//float scaleFOV = tan(120.f / 2 * M_PI / 180);
 			// scaleFOV?
 			cgh.parallel_for<kernels::SphericalHarmonics_Kernel>(range<2>{ new_lattice.get_range() },
-				[=, ViewToWorldMtx = m_viewToWorldMtx, camPosGlm = m_vecEye, sphereCenter = glm::vec3(0.f, 0.f, 0.f), sphereRadius2 = 1.96f, raymarch = m_raymarch, deltaS = 0.02f,
-				getIntersections = getIntersections
+				[=, ViewToWorldMtx = m_viewToWorldMtx, camPosGlm = m_vecEye, sphereCenter = glm::vec3(0.f, 0.f, 0.f), sphereRadius2 = 1.96f, deltaS = 0.01f,
+				raymarch = m_raymarch, getIntersections = getIntersections
 				](const item<2> i)
 			{
 				int2 pixelIndex = i.get_id();

@@ -334,7 +334,7 @@ void Raycaster::setMatrices()
 
     needMatrixReset = false;
 
-	// Set glm matrix for use inside the SYCL kerlen, because QVector may be not be supported inside SDY 
+	// Set glm matrix for use inside the SYCL kerlnel, because QVector may be not be supported inside SYCL 
 	m_vecTarget = glm::vec3(0.f, 0.f, 0.f);
 	m_vecUp = glm::vec3(0.f, 1.f, 0.f);
 	m_vecEye = m_vecTarget + glm::vec3(0, 0, 2.2f);
@@ -419,90 +419,3 @@ void Raycaster::swapBuffers() {
 
     swapDataBuffers();
 }
-
-//// Conway
-//void Raycaster::updateScene_2()
-//{
-//	// NOTE 1: When cl_khr_gl_event is NOT supported, then clFinish() is the only portable
-//	//         sync method and hence that will be called.
-//	//
-//	// NOTE 2.1: When cl_khr_gl_event IS supported AND the possibly conflicting OpenGL
-//	//           context is current to the thread, then it is sufficient to wait for events
-//	//           of clEnqueueAcquireGLObjects, as the spec guarantees that all OpenGL
-//	//           operations involving the acquired memory objects have finished. It also
-//	//           guarantees that any OpenGL commands issued after clEnqueueReleaseGLObjects
-//	//           will not execute until the release is complete.
-//	//         
-//	//           See: opencl-1.2-extensions.pdf (Rev. 15. Chapter 9.8.5)
-//
-//	cl::Event acquire, release;
-//
-//	CLcommandqueues().at(dev_id).enqueueAcquireGLObjects(&interop_resources, nullptr, &acquire);
-//
-//	try
-//	{
-//		compute_queue.submit([&](cl::sycl::handler& cgh)
-//		{
-//			using namespace cl::sycl;
-//
-//			auto old_lattice = latticeImages[Buffer::Front]->get_access<float4, access::mode::read>(cgh);
-//			auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::write>(cgh);
-//
-//			sampler periodic{ coordinate_normalization_mode::normalized,
-//					addressing_mode::repeat,
-//					filtering_mode::nearest };
-//
-//			float2 d = float2{ 1, 1 } / float2{ old_lattice.get_range()[0], old_lattice.get_range()[1] };
-//
-//
-//			cgh.parallel_for<kernels::Test>(range<2>{ old_lattice.get_range() },
-//				[=](const item<2> i)
-//			{
-//				// Convert unnormalized floating coords offsetted by self to normalized uv
-//				auto uv = [=, s = float2{ i.get_id()[0], i.get_id()[1] }, d2 = d * 0.5f](float2 in) { return (s + in) * d + d2; };
-//
-//				auto old = [=](float2 in) { return old_lattice.read(uv(in), periodic).r() > 0.5f; };
-//				auto next = [=](bool v) { new_lattice.write((int2)i.get_id(), float4{ v, v, v, 1.f }); };
-//
-//				std::array<bool, 8> neighbours = {
-//					old(float2{ -1,+1 }), old(float2{ 0,+1 }), old(float2{ +1,+1 }),
-//					old(float2{ -1,0 }),                     old(float2{ +1,0 }),
-//					old(float2{ -1,-1 }), old(float2{ 0,-1 }), old(float2{ +1,-1 }) };
-//
-//				bool self = old(float2{ 0,0 });
-//
-//				auto count = std::count(neighbours.cbegin(), neighbours.cend(), true);
-//
-//				next(self ? (count < 2 || count > 3 ? 0.f : 1.f) : (count == 3 ? 1.f : 0.f));
-//			});
-//		});
-//	}
-//	catch (cl::sycl::compile_program_error e)
-//	{
-//		qDebug() << e.what();
-//		std::exit(e.get_cl_code());
-//	}
-//	catch (cl::sycl::exception e)
-//	{
-//		qDebug() << e.what();
-//		std::exit(e.get_cl_code());
-//	}
-//	catch (std::exception e)
-//	{
-//		qDebug() << e.what();
-//		std::exit(EXIT_FAILURE);
-//	}
-//
-//	CLcommandqueues().at(dev_id).enqueueReleaseGLObjects(&interop_resources, nullptr, &release);
-//
-//	// Wait for all OpenCL commands to finish
-//	if (!cl_khr_gl_event_supported) cl::finish();
-//	else release.wait();
-//
-//	// Swap front and back buffer handles
-//	std::swap(CL_latticeImages[Front], CL_latticeImages[Back]);
-//	std::swap(latticeImages[Front], latticeImages[Back]);
-//	std::swap(texs[Front], texs[Back]);
-//
-//	imageDrawn = false;
-//}
