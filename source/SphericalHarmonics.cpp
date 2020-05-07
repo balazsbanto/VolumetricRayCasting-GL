@@ -1,7 +1,10 @@
 #include <SphericalHarmonics.hpp>
 
 using namespace cl::sycl;
-
+const int X = 0;
+const int Y = 1;
+const int Z = 2;
+const int W = 3;
 
 const auto densityFunc = [](const float& r, const float& theta, const float& /*phi*/)
 {
@@ -20,14 +23,14 @@ const auto colorFunc = [](const int density)
 {
 	if (density > 0)
 	{
-		return float4(0, 0, 1, 0); // blue
+		return float4(0, 0, 1, 1); // blue
 	}
 	else if (density < 0)
 	{
-		return float4(1, 1, 0, 0); // yellow
+		return float4(1, 1, 0, 1); // yellow
 	}
 	else
-		return  float4(0, 0, 0, 0); // black
+		return  float4(0, 0, 0, 1); // black
 };
 
 //		// Start raymarch lambda
@@ -42,7 +45,9 @@ const auto m_raymarch = [](const float3& camPos, const float3& rayDirection, con
 
 	float current_t = startT;
 
-	while (current_t < endT)
+	bool isSaturated = false;
+
+	while (current_t < endT && !isSaturated)
 	{
 		location += deltaS * rayDirection;
 		current_t += deltaS;
@@ -60,8 +65,8 @@ const auto m_raymarch = [](const float3& camPos, const float3& rayDirection, con
 			//float r = sqrt(location.x*location.x + location.y*location.y + location.z*location.z);
 
 		float r = cl::sycl::length(location);
-		float theta = cl::sycl::acos(location.get_value(2) / r); // *180 / 3.1415926f; // convert to degrees?
-		float phi = cl::sycl::atan2(location.get_value(1), location.get_value(0)); // *180 / 3.1415926f;
+		float theta = cl::sycl::acos(location.get_value(Z) / r); // *180 / 3.1415926f; // convert to degrees?
+		float phi = cl::sycl::atan2(location.get_value(Y), location.get_value(X)); // *180 / 3.1415926f;
 
 
 		float4 color = colorFunc(densityFunc(r, theta, phi));
@@ -70,19 +75,15 @@ const auto m_raymarch = [](const float3& camPos, const float3& rayDirection, con
 		finalColor += color;
 		//} // end if check isInside
 
-		// stop the ray, when color reaches the saturation.
-		if (finalColor.r() > saturationThreshold || finalColor.g() > saturationThreshold
-			|| finalColor.b() > saturationThreshold)
-			break;
+		isSaturated = finalColor.r() > saturationThreshold || finalColor.g() > saturationThreshold	|| finalColor.b() > saturationThreshold;
 	}
 
 	// normalizer according to the highest rgb value
-	auto normalizer = std::max((float)1.0f, std::max(std::max(finalColor.r(), finalColor.g()), finalColor.b()));
+	auto normalizer = std::max(1.0f, std::max(std::max(finalColor.r(), finalColor.g()), finalColor.b()));
 	finalColor /= normalizer;
-	finalColor *= 255;
+	finalColor.set_value(W, 1.f);
 
-
-	return float4(finalColor.r(), finalColor.g(), finalColor.b(), 255.f);
+	return finalColor;
 };
 
 struct SphereIntersection {
