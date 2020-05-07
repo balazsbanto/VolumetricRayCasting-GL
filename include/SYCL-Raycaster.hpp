@@ -46,8 +46,6 @@ public:
     virtual void initializeGL() override;
     virtual void initializeCL() override;
     virtual void updateScene() override;
-    //virtual void updateScene_2();
-    //virtual void updateScene_3();
     virtual void render() override;
     virtual void render(QPainter* painter) override;
     virtual void resizeGL(QResizeEvent* event_in) override;
