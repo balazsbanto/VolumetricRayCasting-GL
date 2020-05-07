@@ -6,41 +6,25 @@ const int Y = 1;
 const int Z = 2;
 const int W = 3;
 
-// Y(l = 1, m = 0)
-//const auto densityFunc = [](const float& r, const float& theta, const float& /*phi*/)
-//{
-//	//float sqrt3fpi = cl::sycl::sqrt(3.0f / M_PI);
-//	float val = 1.0f / 2.0f * float(cl::sycl::sqrt(3.0f / M_PI)) * float(cl::sycl::cos(theta)); 
-//	float result = cl::sycl::fabs(2 * cl::sycl::fabs(val) - r);
-//
-//	if (result < 0.01f)	// thickness of shell 
-//		return val < 0 ? -1 : 1;
-//	else
-//		return 0;
-//};
+const auto Y_l1_m0 = [](const float& r, const float& theta, const float& phi) {
+	return 1.0f / 2.0f * float(cl::sycl::sqrt(3.0f / M_PI)) * float(cl::sycl::cos(theta));
+};
 
-// Y(l = 2, m = 0)
-//const auto densityFunc = [](const float& r, const float& theta, const float& /*phi*/)
-//{
-//	//float sqrt3fpi = cl::sycl::sqrt(3.0f / M_PI);
-//	float val = 1.0f / 4.0f * float(cl::sycl::sqrt(5.0f / M_PI)) * (3.f * cl::sycl::pow(float(cl::sycl::cos(theta)), 2.f) - 1);
-//	float result = cl::sycl::fabs(2 * cl::sycl::fabs(val) - r);
-//
-//	if (result < 0.01f)	// thickness of shell 
-//		return val < 0 ? -1 : 1;
-//	else
-//		return 0;
-//};
+const auto Y_l2_m0 = [](const float& r, const float& theta, const float& phi) {
+	return 1.0f / 4.0f * float(cl::sycl::sqrt(5.0f / M_PI)) * (3.f * cl::sycl::pow(float(cl::sycl::cos(theta)), 2.f) - 1);
+};
 
-
-// Y(l = 3, m = 0)
-const auto densityFunc = [](const float& r, const float& theta, const float& /*phi*/)
+const auto Y_l3_m0 = [](const float& r, const float& theta, const float& phi) {
+	return 1.0f / 4.0f * float(cl::sycl::sqrt(7.0f / M_PI)) * (5.f * cl::sycl::pow(float(cl::sycl::cos(theta)), 3.f) - 3.f * float(cl::sycl::cos(theta)));
+};
+const auto densityFunc = [](const float& r, const float& theta, const float& phi)
 {
 	//float sqrt3fpi = cl::sycl::sqrt(3.0f / M_PI);
-	float val = 1.0f / 4.0f * float(cl::sycl::sqrt(7.0f / M_PI)) * (5.f * cl::sycl::pow(float(cl::sycl::cos(theta)), 3.f) - 3.f * float(cl::sycl::cos(theta)));
+	float val = Y_l3_m0(r, theta, phi);
 	float result = cl::sycl::fabs(2 * cl::sycl::fabs(val) - r);
+	const float thickness = 0.04f;
 
-	if (result < 0.05f)	// thickness of shell 
+	if (result < thickness)	// thickness of shell 
 		return val < 0 ? -1 : 1;
 	else
 		return 0;
@@ -156,6 +140,17 @@ void SphericalHarmonics::mouseDragImpl(QMouseEvent* event_in) {
 	theta = (event_in->y() - mousePos.y());
 }
 
+void SphericalHarmonics::mouseWheelEventImpl(QWheelEvent* wheel_event) {
+	auto numDegrees = wheel_event->angleDelta() / 8;
+	auto x = numDegrees.x();
+	auto y = (float)numDegrees.y() / (-50);
+
+	m_vecEye +=  m_vecEye * y;
+
+	needMatrixReset = true;
+	if (!getAnimating()) renderNow();
+}
+
 void SphericalHarmonics::updateSceneImpl() {
 		compute_queue.submit([&](cl::sycl::handler& cgh)
 		{
@@ -165,7 +160,7 @@ void SphericalHarmonics::updateSceneImpl() {
 			//float scaleFOV = tan(120.f / 2 * M_PI / 180);
 			// scaleFOV?
 			cgh.parallel_for<kernels::SphericalHarmonics_Kernel>(range<2>{ new_lattice.get_range() },
-				[=, ViewToWorldMtx = m_viewToWorldMtx, camPosGlm = m_vecEye, sphereCenter = glm::vec3(0.f, 0.f, 0.f), sphereRadius2 = 1.96f, deltaS = 0.01f,
+				[=, ViewToWorldMtx = m_viewToWorldMtx, camPosGlm = m_vecEye, sphereCenter = glm::vec3(0.f, 0.f, 0.f), sphereRadius2 = 2.56f, deltaS = 0.01f,
 				raymarch = m_raymarch, getIntersections = getIntersections
 				](const item<2> i)
 			{

@@ -54,6 +54,7 @@ public:
     // helper function
     virtual void resetScene() {};
     virtual void mouseDragImpl(QMouseEvent* event_in) {};
+    virtual void mouseWheelEventImpl(QWheelEvent* wheel_event) {};
     virtual void swapDataBuffers() {};
     virtual void writeOutputsToFile() {};
     virtual void updateSceneImpl() = 0;  
@@ -61,6 +62,7 @@ public:
     size_t getMeshSize();
     void swapBuffers();
     void mouseDrag(QMouseEvent* event_in);  // Handle mouse dragging
+    void mouseWheelEvent(QWheelEvent* wheel_event);  // Handle mouse dragging
 
 
 protected:
@@ -78,7 +80,7 @@ protected:
     QPoint mousePos;                        // Variables to enable dragging
     float dist, phi, theta;                 // Mouse polar coordinates
     std::array<std::unique_ptr<cl::sycl::image<2>>, 2> latticeImages;   // Simulation data images
-
+    bool needMatrixReset;                   // Whether matrices need to be reset in shaders
 
 private:
 
@@ -101,7 +103,6 @@ private:
     cl::sycl::device device;                // Device
 
     bool imageDrawn;                        // Whether image has been drawn since last iteration
-    bool needMatrixReset;                   // Whether matrices need to be reset in shaders
 
     void setMatrices();                     // Update shader matrices
 

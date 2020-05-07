@@ -19,6 +19,7 @@ public:
 
 	virtual void mouseDragImpl(QMouseEvent* event_in) override;
 	virtual void updateSceneImpl() override;
+	virtual void mouseWheelEventImpl(QWheelEvent* wheel_event) override;
 
 private:
 	

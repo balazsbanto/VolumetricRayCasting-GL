@@ -264,6 +264,11 @@ bool Raycaster::event(QEvent *event_in)
 		mousePos = mouse_event->pos();
 		return true;
 	
+    case QEvent::Wheel:
+        wheel_event = static_cast<QWheelEvent*>(event_in);
+        mouseWheelEvent(wheel_event);
+        return true;
+
 	case QEvent::KeyPress:
         keyboard_event = static_cast<QKeyEvent*>(event_in);
 
@@ -286,6 +291,10 @@ void Raycaster::mouseDrag(QMouseEvent* event_in)
 	needMatrixReset = true;
 
 	if (!getAnimating()) renderNow();
+}
+
+void Raycaster::mouseWheelEvent(QWheelEvent* wheel_event) {
+    mouseWheelEventImpl(wheel_event);
 }
 
 void Raycaster::setVRMatrices() {
@@ -337,7 +346,7 @@ void Raycaster::setMatrices()
 	// Set glm matrix for use inside the SYCL kerlnel, because QVector may be not be supported inside SYCL 
 	m_vecTarget = glm::vec3(0.f, 0.f, 0.f);
 	m_vecUp = glm::vec3(0.f, 1.f, 0.f);
-	m_vecEye = m_vecTarget + glm::vec3(0, 0, 2.2f);
+	m_vecEye = m_vecTarget + glm::vec3(0, 0, 3.2f);
 	glm::mat4 worldToView = glm::lookAt(m_vecEye, m_vecTarget, m_vecUp);
 
 	//qDebug() << glm::to_string(matWorld).c_str() << "\n";
