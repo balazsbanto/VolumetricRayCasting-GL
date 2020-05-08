@@ -5,16 +5,16 @@
 
 namespace kernels { struct RaycasterStep; struct Test; struct Lbm; }
 
-class LatticeBoltzmann2DRaycaster : public Raycaster
+class LatticeBoltzmann2D : public Raycaster
 {
 	Q_OBJECT
 public:
 
-	explicit LatticeBoltzmann2DRaycaster(std::size_t plat,
+	explicit LatticeBoltzmann2D(std::size_t plat,
 		std::size_t dev,
 		cl_bitfield type,
 		QWindow* parent = 0);
-	~LatticeBoltzmann2DRaycaster() = default;
+	~LatticeBoltzmann2D() = default;
 
 	virtual void mouseDragImpl(QMouseEvent* event_in) override;
 	virtual virtual void resetScene() override;

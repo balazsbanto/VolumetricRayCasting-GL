@@ -256,7 +256,7 @@ const auto streamToNeighbours = [](const cl::sycl::int2 id, const int currentPos
 
 };
 
-LatticeBoltzmann2DRaycaster::LatticeBoltzmann2DRaycaster(std::size_t plat,
+LatticeBoltzmann2D::LatticeBoltzmann2D(std::size_t plat,
     std::size_t dev,
     cl_bitfield type,
     QWindow* parent)
@@ -264,7 +264,7 @@ LatticeBoltzmann2DRaycaster::LatticeBoltzmann2DRaycaster(std::size_t plat,
 {
 }
 
-void LatticeBoltzmann2DRaycaster::mouseDragImpl(QMouseEvent* event_in) {
+void LatticeBoltzmann2D::mouseDragImpl(QMouseEvent* event_in) {
 	using namespace cl::sycl;
 
 	/*phi = (event_in->x() - mousePos.x());
@@ -313,7 +313,7 @@ void LatticeBoltzmann2DRaycaster::mouseDragImpl(QMouseEvent* event_in) {
 	qDebug() << "theta: " << theta;*/
 }
 
-void LatticeBoltzmann2DRaycaster::resetScene() {
+void LatticeBoltzmann2D::resetScene() {
 
 	using namespace cl::sycl;
 
@@ -370,7 +370,7 @@ void LatticeBoltzmann2DRaycaster::resetScene() {
 	writeOutputsToFile();
 }
 
-void LatticeBoltzmann2DRaycaster::setInput() {
+void LatticeBoltzmann2D::setInput() {
 	// Set a test velocity of { 0.4395f, 0.4395f } to (64, 10)
 	using namespace cl::sycl;
 	int x = 64;
@@ -408,7 +408,7 @@ void LatticeBoltzmann2DRaycaster::setInput() {
 	if5678[pos].set_value(3, computefEq(rho, w[8], cl::sycl::float2{ h_dirX[8], h_dirY[8] }, newVel));
 }
 
-void LatticeBoltzmann2DRaycaster::writeOutputsToFile() {
+void LatticeBoltzmann2D::writeOutputsToFile() {
 	//fileIndex++;
 	return;
 
@@ -456,7 +456,7 @@ void LatticeBoltzmann2DRaycaster::writeOutputsToFile() {
 	}
 }
 
-void LatticeBoltzmann2DRaycaster::runOnCPU() {
+void LatticeBoltzmann2D::runOnCPU() {
 	using namespace cl::sycl;
 
 	auto if0 = f0_buffers[Buffer::Front]->get_access<access::mode::read>();
@@ -501,7 +501,7 @@ void LatticeBoltzmann2DRaycaster::runOnCPU() {
 
 }
 
-void LatticeBoltzmann2DRaycaster::updateSceneImpl() {
+void LatticeBoltzmann2D::updateSceneImpl() {
 	using namespace cl::sycl;
 	compute_queue.submit([&](cl::sycl::handler& cgh)
 	{
@@ -546,7 +546,7 @@ void LatticeBoltzmann2DRaycaster::updateSceneImpl() {
 }
 
 
-void LatticeBoltzmann2DRaycaster::swapDataBuffers() {
+void LatticeBoltzmann2D::swapDataBuffers() {
 	std::swap(f0_buffers[Buffer::Front], f0_buffers[Buffer::Back]);
 	std::swap(f1234_buffers[Buffer::Front], f1234_buffers[Buffer::Back]);
 	std::swap(f5678_buffers[Buffer::Front], f5678_buffers[Buffer::Back]);
