@@ -5,6 +5,11 @@
 
 namespace kernels { struct SphericalHarmonics_Kernel;}
 
+struct SphereBoundingBox {
+	glm::vec3 center{ 0.f, 0.f, 0.f };
+	float radius2 = 0.f;
+};
+
 class SphericalHarmonics : public Raycaster
 {
 	Q_OBJECT
@@ -17,10 +22,17 @@ public:
 
 	~SphericalHarmonics() = default;
 
+	virtual virtual void resetScene() override;
 	virtual void mouseDragImpl(QMouseEvent* event_in) override;
 	virtual void updateSceneImpl() override;
 	virtual void mouseWheelEventImpl(QWheelEvent* wheel_event) override;
 
+protected:
+	std::array<std::array<float, 2>, 3 > extent;
+	SphereBoundingBox sphereBoundigBox;
+	float stepSize = 0.f;
+
 private:
 	
+
 };
