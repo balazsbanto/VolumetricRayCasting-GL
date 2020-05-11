@@ -23,6 +23,8 @@ set (Sources source/Main.cpp
 set (Headers include/InteropWindow.hpp
              include/LatticeBoltzmann2D.hpp
              include/SphericalHarmonics.hpp
+             include/Lbm2D.hpp
+             include/Harmonics.hpp
              include/${Target_Name}.hpp
              ${CMAKE_CURRENT_BINARY_DIR}/include/${Target_Name}-Config.hpp)
 

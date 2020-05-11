@@ -1,49 +1,9 @@
 #include <SphericalHarmonics.hpp>
+//#include <Harmonics.hpp>
+#include <Lbm2D.hpp>
 
 //#define RUN_ON_CPU
 using namespace cl::sycl;
-const int X = 0;
-const int Y = 1;
-const int Z = 2;
-const int W = 3;
-
-const auto Y_l1_m0 = [](const float& r, const float& theta, const float& phi) {
-	return 1.0f / 2.0f * float(cl::sycl::sqrt(3.0f / M_PI)) * float(cl::sycl::cos(theta));
-};
-
-const auto Y_l2_m0 = [](const float& r, const float& theta, const float& phi) {
-	return 1.0f / 4.0f * float(cl::sycl::sqrt(5.0f / M_PI)) * (3.f * cl::sycl::pow(float(cl::sycl::cos(theta)), 2.f) - 1);
-};
-
-const auto Y_l3_m0 = [](const float& r, const float& theta, const float& phi) {
-	return 1.0f / 4.0f * float(cl::sycl::sqrt(7.0f / M_PI)) * (5.f * cl::sycl::pow(float(cl::sycl::cos(theta)), 3.f) - 3.f * float(cl::sycl::cos(theta)));
-};
-const auto densityFunc = [](const float& r, const float& theta, const float& phi)
-{
-	float val = Y_l3_m0(r, theta, phi);
-	float result = cl::sycl::fabs(2 * cl::sycl::fabs(val) - r);
-	const float thickness = 0.4f;
-
-	if (result < thickness)	// thickness of shell 
-		return val < 0 ? -1 : 1;
-	else
-		return 0;
-};
-
-// color according to the incoming density
-const auto colorFunc = [](const int density)
-{
-	if (density > 0)
-	{
-		return float4(0, 0, 1, 1); // blue
-	}
-	else if (density < 0)
-	{
-		return float4(1, 1, 0, 1); // yellow
-	}
-	else
-		return  float4(0, 0, 0, 1); // black
-};
 
 const auto isInside = [](const std::array<std::array<float, 2>, 3 >& extent, const float3 &location) {
 	return location.get_value(X) >= extent[0][0] && location.get_value(X) <= extent[0][1]
@@ -51,6 +11,7 @@ const auto isInside = [](const std::array<std::array<float, 2>, 3 >& extent, con
 		&& location.get_value(Z) >= extent[2][0] && location.get_value(Z) <= extent[2][1];
 
 };
+
 #ifdef RUN_ON_CPU
 const auto raymarch = [](const float3& camPos, const float3& rayDirection, const float startT, const float endT,
 	const float stepSize, const std::array<std::array<float, 2>, 3 > &extent, std::ofstream& rayPointsFile)
@@ -78,21 +39,17 @@ const auto raymarch = [](const float3& camPos, const float3& rayDirection, const
 
 		if (isInside(extent, location)) {
 
-			float r = cl::sycl::length(location);
-			float theta = cl::sycl::acos(location.get_value(Z) / r); // *180 / 3.1415926f; // convert to degrees?
-			float phi = cl::sycl::atan2(location.get_value(Y), location.get_value(X)); // *180 / 3.1415926f;
-
-
-			float4 color = colorFunc(densityFunc(r, theta, phi));
+			float4 color = colorFunc(densityFunc(transformWorldCoordinates(location)));
 
 			finalColor += color;
 
 			isSaturated = finalColor.r() > saturationThreshold || finalColor.g() > saturationThreshold || finalColor.b() > saturationThreshold;
 
 #ifdef RUN_ON_CPU
-			if (cl::sycl::fabs(location.get_value(2)) < stepSize) {
-				rayPointsFile << 128 * location.get_value(0) << " " << 128 * location.get_value(1) << " " << location.get_value(2) << "\n";
-			}
+			//if (cl::sycl::fabs(location.get_value(Z)) < stepSize) {
+			auto transformedToLbm = transformWorldCoordinates(location);
+				rayPointsFile << (int) transformedToLbm.get_value(X) << " " << (int) transformedToLbm.get_value(Y) << " " << transformedToLbm.get_value(Z) << "\n";
+			//}
 #endif
 		}
 	}
@@ -148,7 +105,7 @@ void SphericalHarmonics::mouseDragImpl(QMouseEvent* event_in) {
 }
 
 void SphericalHarmonics::resetScene() {
-	float xy_lim = 2.f;
+	float xy_lim = 1.0f;
 	// For now suposing that the extent is a cube
 	 extent = { { { -xy_lim, xy_lim },{ -xy_lim, xy_lim },{ -xy_lim, xy_lim } } };
 	 sphereBoundigBox.center = glm::vec3((extent[0][0] + extent[0][1]) / 2, (extent[1][0] + extent[1][1]) / 2, (extent[2][0] + extent[2][1]) / 2);
@@ -181,7 +138,6 @@ void SphericalHarmonics::updateSceneImpl() {
 		for (int x = 0; x < screen_width; x++) {
 
 			int2 i{ x, y };
-			rayPointsFile << "Start ray: " << x << " " << y << "\n";
 
 			glm::vec4 rayVec((2 * (i.get_value(0) + 0.5f) / (float)screen_width - 1) * aspectRatio /* * scaleFOV */,
 				(1 - 2 * (i.get_value(1) + 0.5f) / (float)screen_height) /* * scaleFOV*/,
@@ -197,11 +153,13 @@ void SphericalHarmonics::updateSceneImpl() {
 			float4 pixelColor;
 			if (spherIntersection.isIntersected && spherIntersection.t0 > 0.0 && spherIntersection.t1 > 0.0)
 			{
+				rayPointsFile << "Start ray: " << x << " " << y << "\n";
 				pixelColor = raymarch(cameraPos, normalizedCamRayDir, spherIntersection.t0, spherIntersection.t1, stepSize, extent, rayPointsFile);
 			}
 			// if we are inside the spehere, we trace from the the ray's original position
 			else if (spherIntersection.isIntersected && spherIntersection.t1 > 0.f)
 			{
+				rayPointsFile << "Start ray: " << x << " " << y << "\n";
 				pixelColor = raymarch(cameraPos, normalizedCamRayDir, 0.0, spherIntersection.t1, stepSize, extent, rayPointsFile);
 			}
 			else

@@ -346,7 +346,7 @@ void Raycaster::setMatrices()
 	// Set glm matrix for use inside the SYCL kerlnel, because QVector may be not be supported inside SYCL 
 	m_vecTarget = glm::vec3(0.f, 0.f, 0.f);
 	m_vecUp = glm::vec3(0.f, 1.f, 0.f);
-	m_vecEye = m_vecTarget + glm::vec3(0, 0, 3.2f);
+	m_vecEye = m_vecTarget + glm::vec3(0, 0, 2.f);
 	glm::mat4 worldToView = glm::lookAt(m_vecEye, m_vecTarget, m_vecUp);
 
 	//qDebug() << glm::to_string(matWorld).c_str() << "\n";
