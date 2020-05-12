@@ -3,7 +3,7 @@
 // GLM
 #define GLM_ENABLE_EXPERIMENTAL
 
-#include <SYCL-Raycaster.hpp>
+#include <InteropWindowImpl.hpp>
 #include <glm/gtx/transform.hpp>
 
 #include <iterator>
@@ -11,7 +11,7 @@
 //#include "glm/ext.hpp"
 //#include "C:/Diplomamunka/vcpkg/installed/x64-windows/include/glm/ext.hpp"
 
-Raycaster::Raycaster(std::size_t plat,
+InteropWindowImpl::InteropWindowImpl(std::size_t plat,
                std::size_t dev,
                cl_bitfield type,
                QWindow *parent)
@@ -26,7 +26,7 @@ Raycaster::Raycaster(std::size_t plat,
 }
 
 // Override unimplemented InteropWindow function
-void Raycaster::initializeGL()
+void InteropWindowImpl::initializeGL()
 {
     qDebug("Raycaster: Entering initializeGL");
     std::unique_ptr<QOpenGLDebugLogger> log(new QOpenGLDebugLogger(this));
@@ -134,7 +134,7 @@ void Raycaster::initializeGL()
 }
 
 // Override unimplemented InteropWindow function
-void Raycaster::initializeCL()
+void InteropWindowImpl::initializeCL()
 {
     qDebug("Raycaster: Entering initializeCL");
 
@@ -191,7 +191,7 @@ void Raycaster::initializeCL()
 }
 
 // Override unimplemented InteropWindow function
-void Raycaster::render()
+void InteropWindowImpl::render()
 {
     std::unique_ptr<QOpenGLDebugLogger> log(new QOpenGLDebugLogger(this));
     if (!log->initialize()) qWarning("Raycaster: QDebugLogger failed to initialize");
@@ -224,7 +224,7 @@ void Raycaster::render()
 }
 
 // Override unimplemented InteropWindow function
-void Raycaster::render(QPainter* painter)
+void InteropWindowImpl::render(QPainter* painter)
 {
     QString text("QRaycaster: ");
     text.append("IPS = ");
@@ -236,7 +236,7 @@ void Raycaster::render(QPainter* painter)
 }
 
 // Override InteropWindow function
-void Raycaster::resizeGL(QResizeEvent* event_in)
+void InteropWindowImpl::resizeGL(QResizeEvent* event_in)
 {
     glFuncs->glViewport(0, 0, event_in->size().width(), event_in->size().height());
     checkGLerror();
@@ -245,7 +245,7 @@ void Raycaster::resizeGL(QResizeEvent* event_in)
 }
 
 // Override InteropWindow function
-bool Raycaster::event(QEvent *event_in)
+bool InteropWindowImpl::event(QEvent *event_in)
 {
 	QMouseEvent* mouse_event;
 	QWheelEvent* wheel_event;
@@ -284,7 +284,7 @@ bool Raycaster::event(QEvent *event_in)
 // setCameraMatrices, ezeket csak a sycl-ben hasznalni. Ezt kellene meghivni akkor, amikor kapok egy uj eventet.
 
 // Input handler function
-void Raycaster::mouseDrag(QMouseEvent* event_in)
+void InteropWindowImpl::mouseDrag(QMouseEvent* event_in)
 {
     mouseDragImpl(event_in);
 
@@ -293,11 +293,11 @@ void Raycaster::mouseDrag(QMouseEvent* event_in)
 	if (!getAnimating()) renderNow();
 }
 
-void Raycaster::mouseWheelEvent(QWheelEvent* wheel_event) {
+void InteropWindowImpl::mouseWheelEvent(QWheelEvent* wheel_event) {
     mouseWheelEventImpl(wheel_event);
 }
 
-void Raycaster::setVRMatrices() {
+void InteropWindowImpl::setVRMatrices() {
 
 	glm::mat3 tansformation = glm::rotate(glm::radians(phi), glm::vec3(0.f, 1.f, 0.f)) *
 		glm::rotate(glm::radians(theta), glm::vec3(1.f, 0.f, 0.f));
@@ -314,7 +314,7 @@ void Raycaster::setVRMatrices() {
 	needMatrixReset = false;
 }
 // Helper function
-void Raycaster::setMatrices()
+void InteropWindowImpl::setMatrices()
 {
     // Set camera to view the origo from the z-axis with up along the y-axis
     // and distance so the entire sim space is visible with given field-of-view
@@ -358,13 +358,13 @@ void Raycaster::setMatrices()
 }
 
 
-size_t Raycaster::getMeshSize() {
+size_t InteropWindowImpl::getMeshSize() {
 	return width() * height();
 }
 
 
 // LBM
-void Raycaster::updateScene()
+void InteropWindowImpl::updateScene()
 {
 	// NOTE 1: When cl_khr_gl_event is NOT supported, then clFinish() is the only portable
 	//         sync method and hence that will be called.
@@ -421,7 +421,7 @@ void Raycaster::updateScene()
 	imageDrawn = false;
 }
 
-void Raycaster::swapBuffers() {
+void InteropWindowImpl::swapBuffers() {
 	std::swap(CL_latticeImages[Front], CL_latticeImages[Back]);
 	std::swap(latticeImages[Front], latticeImages[Back]);
 	std::swap(texs[Front], texs[Back]);

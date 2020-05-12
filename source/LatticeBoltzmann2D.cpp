@@ -13,7 +13,7 @@ LatticeBoltzmann2D::LatticeBoltzmann2D(std::size_t plat,
     std::size_t dev,
     cl_bitfield type,
     QWindow* parent)
-    : Raycaster(plat, dev, type, parent)
+    : InteropWindowImpl(plat, dev, type, parent)
 {
 }
 

@@ -1,7 +1,7 @@
 # Scripts want to rely on stock FindOpenCL.cmake
 cmake_minimum_required (VERSION 3.1)
 
-set (Target_Name SYCL-Raycaster)
+set (Target_Name InteropWindowImpl)
 
 # Always include current directory for all compile commands 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)

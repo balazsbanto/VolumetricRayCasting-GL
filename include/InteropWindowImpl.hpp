@@ -1,7 +1,7 @@
 #pragma once
 
 // NBody configure
-#include <SYCL-Raycaster-Config.hpp>
+#include <InteropWindowImpl-Config.hpp>
 
 // C++ behavioral defines
 #define _USE_MATH_DEFINES
@@ -31,17 +31,17 @@
 #include <memory>       // std::unique_ptr
 
 
-class Raycaster : public InteropWindow
+class InteropWindowImpl : public InteropWindow
 {
     Q_OBJECT
 
 public:
 
-    explicit Raycaster(std::size_t plat,
+    explicit InteropWindowImpl(std::size_t plat,
                     std::size_t dev,
                     cl_bitfield type,
                     QWindow *parent = 0);
-    ~Raycaster() = default;
+    ~InteropWindowImpl() = default;
 
     virtual void initializeGL() override;
     virtual void initializeCL() override;

@@ -1,7 +1,7 @@
 #pragma once
 // SYCL include
 #include <CL/sycl.hpp>
-#include <SYCL-Raycaster.hpp>
+#include <InteropWindowImpl.hpp>
 
 namespace kernels { struct SphericalHarmonics_Kernel;}
 
@@ -10,7 +10,7 @@ struct SphereBoundingBox {
 	float radius2 = 0.f;
 };
 
-class SphericalHarmonics : public Raycaster
+class SphericalHarmonics : public InteropWindowImpl
 {
 	Q_OBJECT
 public:

@@ -4,7 +4,7 @@
 #include <QCommandLineParser>
 
 // Custom made includes
-#include <SYCL-Raycaster.hpp>
+#include <InteropWindowImpl.hpp>
 
 // SYCL include
 #ifdef _MSC_VER 
@@ -53,14 +53,14 @@ int main(int argc, char *argv[])
     //        dev_type = CL_DEVICE_TYPE_ACCELERATOR;
     //    else
     //    {
-    //        qFatal("SYCL-Raycaster: Invalid device type: valid values are [cpu|gpu|acc]. Using CL_DEVICE_TYPE_DEFAULT instead.");
+    //        qFatal("SYCL-InteropWindowImpl: Invalid device type: valid values are [cpu|gpu|acc]. Using CL_DEVICE_TYPE_DEFAULT instead.");
     //    }
     //}
 
     dev_type = CL_DEVICE_TYPE_GPU;
 
-    //SphericalHarmonics raycaster(plat_id, dev_id, dev_type);
-    LatticeBoltzmann2D raycaster(plat_id, dev_id, dev_type);
+    SphericalHarmonics raycaster(plat_id, dev_id, dev_type);
+    //LatticeBoltzmann2D raycaster(plat_id, dev_id, dev_type);
     raycaster.setGeometry(QRect(0, 0, 128, 128));
     raycaster.setVisibility(QWindow::Windowed);
     //raycaster.setVisibility(QWindow::Maximized);

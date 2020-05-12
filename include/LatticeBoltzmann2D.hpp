@@ -1,11 +1,11 @@
 #pragma once
 // SYCL include
 #include <CL/sycl.hpp>
-#include <SYCL-Raycaster.hpp>
+#include <InteropWindowImpl.hpp>
 
 namespace kernels { struct RaycasterStep; struct Test; struct Lbm; }
 
-class LatticeBoltzmann2D : public Raycaster
+class LatticeBoltzmann2D : public InteropWindowImpl
 {
 	Q_OBJECT
 public:
