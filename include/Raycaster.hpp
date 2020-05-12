@@ -6,8 +6,6 @@
 
 using namespace cl::sycl;
 
-namespace kernels { struct Raycaster_Kernel;}
-
 const auto isInside = [](const std::array<std::array<float, 2>, 3 >& extent, const float3& location) {
 	return location.get_value(X) >= extent[0][0] && location.get_value(X) <= extent[0][1]
 		&& location.get_value(Y) >= extent[1][0] && location.get_value(Y) <= extent[1][1]

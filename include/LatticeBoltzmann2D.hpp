@@ -3,7 +3,7 @@
 #include <CL/sycl.hpp>
 #include <InteropWindowImpl.hpp>
 
-namespace kernels { struct RaycasterStep; struct Test; struct Lbm; }
+namespace kernels {struct Lbm; }
 
 class LatticeBoltzmann2D : public InteropWindowImpl
 {

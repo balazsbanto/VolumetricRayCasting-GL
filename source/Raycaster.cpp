@@ -1,7 +1,5 @@
 #include <Raycaster.hpp>
-//#include <Harmonics.hpp>
 
-//#define RUN_ON_CPU
 using namespace cl::sycl;
 
 Raycaster::Raycaster(std::size_t plat,

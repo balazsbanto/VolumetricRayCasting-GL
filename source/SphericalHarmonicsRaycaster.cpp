@@ -1,16 +1,42 @@
-#include <RaycasterLatticeBoltzmann2D.hpp>
+#include <SphericalHarmonicsRaycaster.hpp>
+//#define RUN_ON_CPU
 #include <Common.hpp>
-namespace kernels { struct Raycaster_LBM2D; }
+namespace kernels { struct Raycaster_SphericalHarmonics; }
 using namespace cl::sycl;
 
-const auto transformWorldCoordinates = [](const float3& worldLocation, const int extentLim = 1, const int lbmSize = 128) {
-	return float3{ worldLocation.get_value(X) + extentLim, extentLim - worldLocation.get_value(Y), worldLocation.get_value(Z) } *(lbmSize / (2 * extentLim));
+struct SphericalCoordinates {
+	float r = 0;
+	float theta = 0;
+	float phi = 0;
+
 };
 
 
-const auto densityFunc = [](const float3& lbmSpaceCoordinates)
+const auto Y_l1_m0 = [](const SphericalCoordinates& sphericalCoordinates) {
+	return 1.0f / 2.0f * float(cl::sycl::sqrt(3.0f / M_PI)) * float(cl::sycl::cos(sphericalCoordinates.theta));
+};
+
+const auto Y_l2_m0 = [](const SphericalCoordinates& sphericalCoordinates) {
+	return 1.0f / 4.0f * float(cl::sycl::sqrt(5.0f / M_PI)) *
+		(3.f * cl::sycl::pow(float(cl::sycl::cos(sphericalCoordinates.theta)), 2.f) - 1);
+};
+
+const auto Y_l3_m0 = [](const SphericalCoordinates& sphericalCoordinates) {
+	return 1.0f / 4.0f * float(cl::sycl::sqrt(7.0f / M_PI)) *
+		(5.f * cl::sycl::pow(float(cl::sycl::cos(sphericalCoordinates.theta)), 3.f)
+			- 3.f * float(cl::sycl::cos(sphericalCoordinates.theta)));
+};
+
+const auto densityFunc = [](const SphericalCoordinates& sphericalCoordinates)
 {
-	return 1;
+	float val = Y_l3_m0(sphericalCoordinates);
+	float result = cl::sycl::fabs(2 * cl::sycl::fabs(val) - sphericalCoordinates.r);
+	const float thickness = 0.4f;
+
+	if (result < thickness)	// thickness of shell 
+		return val < 0 ? -1 : 1;
+	else
+		return 0;
 };
 
 // color according to the incoming density
@@ -26,6 +52,11 @@ const auto colorFunc = [](const int density)
 	}
 	else
 		return  float4(0, 0, 0, 1); // black
+};
+
+const auto transformWorldCoordinates = [](const float3& location) {
+	auto r = cl::sycl::length(location);
+	return SphericalCoordinates{ r,  cl::sycl::acos(location.get_value(Z) / r), cl::sycl::atan2(location.get_value(Y), location.get_value(X)) };
 };
 
 #ifdef RUN_ON_CPU
@@ -61,12 +92,6 @@ const auto raymarch = [](const float3& camPos, const float3& rayDirection, const
 
 			isSaturated = finalColor.r() > saturationThreshold || finalColor.g() > saturationThreshold || finalColor.b() > saturationThreshold;
 
-#ifdef RUN_ON_CPU
-			//if (cl::sycl::fabs(location.get_value(Z)) < stepSize) {
-			auto transformedToLbm = transformWorldCoordinates(location);
-			rayPointsFile << (int)transformedToLbm.get_value(X) << " " << (int)transformedToLbm.get_value(Y) << " " << transformedToLbm.get_value(Z) << "\n";
-			//}
-#endif
 		}
 	}
 
@@ -78,16 +103,16 @@ const auto raymarch = [](const float3& camPos, const float3& rayDirection, const
 	return finalColor;
 };
 
-RaycasterLatticeBoltzmann2D::RaycasterLatticeBoltzmann2D(std::size_t plat,
-    std::size_t dev,
-    cl_bitfield type,
-    QWindow* parent)
-    : Raycaster(plat, dev, type, parent)
+SphericalHarmonicsRaycaster::SphericalHarmonicsRaycaster(std::size_t plat,
+	std::size_t dev,
+	cl_bitfield type,
+	QWindow* parent)
+	: Raycaster(plat, dev, type, parent)
 {
 }
 
 #ifdef RUN_ON_CPU
-void RaycasterLatticeBoltzmann2D::updateSceneImpl() {
+void SphericalHarmonicsRaycaster::updateSceneImpl() {
 
 	int screen_width = width();
 	int screen_height = height();
@@ -135,7 +160,7 @@ void RaycasterLatticeBoltzmann2D::updateSceneImpl() {
 	rayPointsFile.close();
 }
 #else
-void RaycasterLatticeBoltzmann2D::updateSceneImpl() {
+void SphericalHarmonicsRaycaster::updateSceneImpl() {
 
 	int screen_width = width();
 	int screen_height = height();
@@ -146,7 +171,7 @@ void RaycasterLatticeBoltzmann2D::updateSceneImpl() {
 		auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::write>(cgh);
 		//float scaleFOV = tan(120.f / 2 * M_PI / 180);
 		// scaleFOV?
-		cgh.parallel_for<kernels::Raycaster_LBM2D>(range<2>{ new_lattice.get_range() },
+		cgh.parallel_for<kernels::Raycaster_SphericalHarmonics>(range<2>{ new_lattice.get_range() },
 			[=, ViewToWorldMtx = m_viewToWorldMtx, camPosGlm = m_vecEye, sphereBoundigBox = sphereBoundigBox, stepSize = stepSize,
 			raymarch = raymarch, getIntersections = getIntersections, extent = extent
 			](const item<2> i)

@@ -19,14 +19,14 @@ set (Sources source/Main.cpp
              source/LatticeBoltzmann2D.cpp
              source/Raycaster.cpp
              source/RaycasterLatticeBoltzmann2D.cpp
+             source/SphericalHarmonicsRaycaster.cpp
              )
 
 set (Headers include/InteropWindow.hpp
              include/LatticeBoltzmann2D.hpp
              include/Raycaster.hpp
              include/RaycasterLatticeBoltzmann2D.hpp
-             include/Lbm2D.hpp
-             include/Harmonics.hpp
+             include/SphericalHarmonicsRaycaster.hpp
              include/${Target_Name}.hpp
              ${CMAKE_CURRENT_BINARY_DIR}/include/${Target_Name}-Config.hpp)
 
@@ -66,6 +66,7 @@ add_sycl_to_target(TARGET ${Target_Name}
                    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/source/${Target_Name}.cpp
                            ${CMAKE_CURRENT_SOURCE_DIR}/source/LatticeBoltzmann2D.cpp
                            ${CMAKE_CURRENT_SOURCE_DIR}/source/Raycaster.cpp
+                           ${CMAKE_CURRENT_SOURCE_DIR}/source/SphericalHarmonicsRaycaster.cpp
                            ${CMAKE_CURRENT_SOURCE_DIR}/source/RaycasterLatticeBoltzmann2D.cpp
                            )
 
