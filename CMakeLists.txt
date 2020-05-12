@@ -18,11 +18,13 @@ set (Sources source/Main.cpp
              source/InteropWindow.cpp
              source/LatticeBoltzmann2D.cpp
              source/Raycaster.cpp
+             source/RaycasterLatticeBoltzmann2D.cpp
              )
 
 set (Headers include/InteropWindow.hpp
              include/LatticeBoltzmann2D.hpp
              include/Raycaster.hpp
+             include/RaycasterLatticeBoltzmann2D.hpp
              include/Lbm2D.hpp
              include/Harmonics.hpp
              include/${Target_Name}.hpp
@@ -64,6 +66,7 @@ add_sycl_to_target(TARGET ${Target_Name}
                    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/source/${Target_Name}.cpp
                            ${CMAKE_CURRENT_SOURCE_DIR}/source/LatticeBoltzmann2D.cpp
                            ${CMAKE_CURRENT_SOURCE_DIR}/source/Raycaster.cpp
+                           ${CMAKE_CURRENT_SOURCE_DIR}/source/RaycasterLatticeBoltzmann2D.cpp
                            )
 
 # Create source groups for IDE
