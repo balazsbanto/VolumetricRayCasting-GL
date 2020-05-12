@@ -235,7 +235,8 @@ void LatticeBoltzmann2D::runOnCPU() {
 
 			auto cellAfterCollision = collide(Distributions{ if0[pos], if1234[pos], if5678[pos] }, type[pos]);
 
-			streamToNeighbours<access::target::host_buffer>(id, pos, screen_width, screen_height, cellAfterCollision.distributions, of0, of1234, of5678);
+			streamToNeighbours<access::target::host_buffer>(id, pos, screen_width, screen_height, cellAfterCollision.distributions,
+				DistributionBuffers<access::target::host_buffer>{ of0, of1234, of5678 });
 
 			velocity_out[pos] = cellAfterCollision.velocity;
 
@@ -266,9 +267,9 @@ void LatticeBoltzmann2D::updateSceneImpl() {
 
 		// Output buffers
 		auto velocity_out = velocity_buffer->get_access<access::mode::discard_write>(cgh);
-		const auto of0 = f0_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
-		const auto of1234 = f1234_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
-		const auto of5678 = f5678_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
+		auto of0 = f0_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
+		auto of1234 = f1234_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
+		auto of5678 = f5678_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
 
 		auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::discard_write>(cgh);
 
@@ -286,7 +287,8 @@ void LatticeBoltzmann2D::updateSceneImpl() {
 
 			auto cellAfterCollision = collide(Distributions{ if0[pos], if1234[pos], if5678[pos] }, type[pos]);
 
-			streamToNeighbours<access::target::global_buffer>(id, pos, screen_width, screen_height, cellAfterCollision.distributions, of0, of1234, of5678);
+			streamToNeighbours<access::target::global_buffer>(id, pos, screen_width, screen_height, cellAfterCollision.distributions,
+				DistributionBuffers<access::target::global_buffer>{ of0, of1234, of5678 });
 
 			velocity_out[pos] = cellAfterCollision.velocity;
 			auto finalPixelColor = colorFunc(cellAfterCollision.velocity, cellAfterCollision.cellType);

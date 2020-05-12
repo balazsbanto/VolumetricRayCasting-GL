@@ -27,8 +27,6 @@ public:
 
 private:
 	// LBM D2Q9
-	// (1/relaxation time) Related to viscosity 
-	float omega = 1.2f;
 
 	//  Distribution Buffers
 	std::array < std::unique_ptr<cl::sycl::buffer<float, 1> >, 2 > f0_buffers;

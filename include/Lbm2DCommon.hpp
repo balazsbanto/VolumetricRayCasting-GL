@@ -14,6 +14,14 @@ struct CellData
 
 };
 
+template <cl::sycl::access::target Target>
+struct DistributionBuffers {
+	const cl::sycl::accessor<float, 1, cl::sycl::access::mode::discard_write, Target, cl::sycl::access::placeholder::false_t>& f0;
+	const cl::sycl::accessor<cl::sycl::float4, 1, cl::sycl::access::mode::discard_write, Target, cl::sycl::access::placeholder::false_t>& f1234;
+	const cl::sycl::accessor<cl::sycl::float4, 1, cl::sycl::access::mode::discard_write, Target, cl::sycl::access::placeholder::false_t>& f5678;
+
+};
+
 const auto colorFunc = [](cl::sycl::float2 inVelocity, bool isBoundary) {
 	using namespace cl::sycl;
 	float4 color = { 0.f, 0.f, 0.f, 1.f };
@@ -180,9 +188,8 @@ const auto collide = [](const Distributions& cellDistributions, const bool cellT
 
 template <cl::sycl::access::target Target>
 const auto streamToNeighbours = [](const cl::sycl::int2 id, const int currentPos, const int width, const int height, const Distributions& currentCellDistributions,
-	const cl::sycl::accessor<float, 1, cl::sycl::access::mode::discard_write, Target, cl::sycl::access::placeholder::false_t>& of0,
-	const cl::sycl::accessor<cl::sycl::float4, 1, cl::sycl::access::mode::discard_write, Target, cl::sycl::access::placeholder::false_t>& of1234,
-	const cl::sycl::accessor<cl::sycl::float4, 1, cl::sycl::access::mode::discard_write, Target, cl::sycl::access::placeholder::false_t>& of5678) {
+	const DistributionBuffers<Target> &outDistributionBuffers) {
+          
 
 	using namespace cl::sycl;
 	// Propagate
@@ -205,46 +212,46 @@ const auto streamToNeighbours = [](const cl::sycl::int2 id, const int currentPos
 	int isNotLeftBoundary = id.get_value(0) > int(0);                      // Not on Left boundary
 	int isNotLowerBoundary = id.get_value(1) < int(height - 1); // Not on lower boundary
 
-	of0[currentPos] = currentCellDistributions.f0;
+	outDistributionBuffers.f0[currentPos] = currentCellDistributions.f0;
 
 	// Propagate to right cell
 	if (isNotRightBoundary) {
-		of1234[nPos.get_value(0)].set_value(0, currentCellDistributions.f1234.get_value(0));
+		outDistributionBuffers.f1234[nPos.get_value(0)].set_value(0, currentCellDistributions.f1234.get_value(0));
 	}
 
 	// Propagate to Lower cell
 	if (isNotLowerBoundary) {
-		of1234[nPos.get_value(1)].set_value(1, currentCellDistributions.f1234.get_value(1));
+		outDistributionBuffers.f1234[nPos.get_value(1)].set_value(1, currentCellDistributions.f1234.get_value(1));
 	}
 
 	// Propagate to left cell
 	if (isNotLeftBoundary) {
-		of1234[nPos.get_value(2)].set_value(2, currentCellDistributions.f1234.get_value(2));
+		outDistributionBuffers.f1234[nPos.get_value(2)].set_value(2, currentCellDistributions.f1234.get_value(2));
 	}
 
 	// Propagate to Upper cell
 	if (isNotUpperBoundary) {
-		of1234[nPos.get_value(3)].set_value(3, currentCellDistributions.f1234.get_value(3));
+		outDistributionBuffers.f1234[nPos.get_value(3)].set_value(3, currentCellDistributions.f1234.get_value(3));
 	}
 
 	// Propagate to Lower-Right cell
 	if (isNotRightBoundary && isNotLowerBoundary) {
-		of5678[nPos.get_value(4)].set_value(0, currentCellDistributions.f5678.get_value(0));
+		outDistributionBuffers.f5678[nPos.get_value(4)].set_value(0, currentCellDistributions.f5678.get_value(0));
 	}
 
 	// Propogate to Lower-Left cell
 	if (isNotLowerBoundary && isNotLeftBoundary) {
-		of5678[nPos.get_value(5)].set_value(1, currentCellDistributions.f5678.get_value(1));
+		outDistributionBuffers.f5678[nPos.get_value(5)].set_value(1, currentCellDistributions.f5678.get_value(1));
 	}
 
 	// Propagate to Upper-Left cell
 	if (isNotLeftBoundary && isNotUpperBoundary) {
-		of5678[nPos.get_value(6)].set_value(2, currentCellDistributions.f5678.get_value(2));
+		outDistributionBuffers.f5678[nPos.get_value(6)].set_value(2, currentCellDistributions.f5678.get_value(2));
 	}
 
 	// Propagate to Upper-Right cell
 	if (isNotUpperBoundary && isNotRightBoundary) {
-		of5678[nPos.get_value(7)].set_value(3, currentCellDistributions.f5678.get_value(3));
+		outDistributionBuffers.f5678[nPos.get_value(7)].set_value(3, currentCellDistributions.f5678.get_value(3));
 	}
 
 };
