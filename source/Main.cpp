@@ -18,7 +18,7 @@
 #endif
 
 #include <LatticeBoltzmann2D.hpp>
-#include <SphericalHarmonics.hpp>
+#include <Raycaster.hpp>
 
 int main(int argc, char *argv[])
 {
@@ -59,8 +59,8 @@ int main(int argc, char *argv[])
 
     dev_type = CL_DEVICE_TYPE_GPU;
 
-    SphericalHarmonics raycaster(plat_id, dev_id, dev_type);
-    //LatticeBoltzmann2D raycaster(plat_id, dev_id, dev_type);
+    //Raycaster raycaster(plat_id, dev_id, dev_type);
+    LatticeBoltzmann2D raycaster(plat_id, dev_id, dev_type);
     raycaster.setGeometry(QRect(0, 0, 128, 128));
     raycaster.setVisibility(QWindow::Windowed);
     //raycaster.setVisibility(QWindow::Maximized);

@@ -1,4 +1,4 @@
-#include <SphericalHarmonics.hpp>
+#include <Raycaster.hpp>
 //#include <Harmonics.hpp>
 #include <Lbm2D.hpp>
 
@@ -91,7 +91,7 @@ auto getIntersections = [](const float3& rayorig, const float3& raydir, const Sp
 };
 
 
-SphericalHarmonics::SphericalHarmonics(std::size_t plat,
+Raycaster::Raycaster(std::size_t plat,
     std::size_t dev,
     cl_bitfield type,
     QWindow* parent)
@@ -99,12 +99,12 @@ SphericalHarmonics::SphericalHarmonics(std::size_t plat,
 {
 }
 
-void SphericalHarmonics::mouseDragImpl(QMouseEvent* event_in) {
+void Raycaster::mouseDragImpl(QMouseEvent* event_in) {
 	phi = (event_in->x() - mousePos.x());
 	theta = (event_in->y() - mousePos.y());
 }
 
-void SphericalHarmonics::resetScene() {
+void Raycaster::resetScene() {
 	float xy_lim = 1.0f;
 	// For now suposing that the extent is a cube
 	 extent = { { { -xy_lim, xy_lim },{ -xy_lim, xy_lim },{ -xy_lim, xy_lim } } };
@@ -113,7 +113,7 @@ void SphericalHarmonics::resetScene() {
 	 stepSize = (extent[0][1] - extent[0][0]) / 200.f;
 }
 
-void SphericalHarmonics::mouseWheelEventImpl(QWheelEvent* wheel_event) {
+void Raycaster::mouseWheelEventImpl(QWheelEvent* wheel_event) {
 	auto numDegrees = wheel_event->angleDelta() / 8;
 	auto x = numDegrees.x();
 	auto y = (float)numDegrees.y() / (-50);
@@ -124,7 +124,7 @@ void SphericalHarmonics::mouseWheelEventImpl(QWheelEvent* wheel_event) {
 	if (!getAnimating()) renderNow();
 }
 #ifdef RUN_ON_CPU
-void SphericalHarmonics::updateSceneImpl() {
+void Raycaster::updateSceneImpl() {
 
 	int screen_width = width();
 	int screen_height = height();
@@ -172,7 +172,7 @@ void SphericalHarmonics::updateSceneImpl() {
 	rayPointsFile.close();
 }
 #else
-void SphericalHarmonics::updateSceneImpl() {
+void Raycaster::updateSceneImpl() {
 
 	int screen_width = width();
 	int screen_height = height();
@@ -183,7 +183,7 @@ void SphericalHarmonics::updateSceneImpl() {
 		auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::write>(cgh);
 		//float scaleFOV = tan(120.f / 2 * M_PI / 180);
 		// scaleFOV?
-		cgh.parallel_for<kernels::SphericalHarmonics_Kernel>(range<2>{ new_lattice.get_range() },
+		cgh.parallel_for<kernels::Raycaster_Kernel>(range<2>{ new_lattice.get_range() },
 			[=, ViewToWorldMtx = m_viewToWorldMtx, camPosGlm = m_vecEye, sphereBoundigBox  = sphereBoundigBox, stepSize = stepSize,
 			raymarch = raymarch, getIntersections = getIntersections, extent = extent
 			](const item<2> i)
