@@ -129,6 +129,7 @@ void InteropWindowImpl::initializeGL()
 
 	setMatrices();
 	resetScene();
+    screenSize = ScreenSize{ width(), height() };
 
      qDebug("Raycaster: Leaving initializeGL");
 }
@@ -241,6 +242,7 @@ void InteropWindowImpl::resizeGL(QResizeEvent* event_in)
     glFuncs->glViewport(0, 0, event_in->size().width(), event_in->size().height());
     checkGLerror();
 
+    screenSize = ScreenSize{ event_in->size().width(),  event_in->size().height() };
     needMatrixReset = true; // projection matrix need to be recalculated
 }
 

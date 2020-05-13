@@ -14,11 +14,11 @@ struct CellData
 
 };
 
-template <cl::sycl::access::target Target>
+template <cl::sycl::access::target Target, cl::sycl::access::mode Mode>
 struct DistributionBuffers {
-	const cl::sycl::accessor<float, 1, cl::sycl::access::mode::discard_write, Target, cl::sycl::access::placeholder::false_t>& f0;
-	const cl::sycl::accessor<cl::sycl::float4, 1, cl::sycl::access::mode::discard_write, Target, cl::sycl::access::placeholder::false_t>& f1234;
-	const cl::sycl::accessor<cl::sycl::float4, 1, cl::sycl::access::mode::discard_write, Target, cl::sycl::access::placeholder::false_t>& f5678;
+	const cl::sycl::accessor<float, 1, Mode, Target, cl::sycl::access::placeholder::false_t>& f0;
+	const cl::sycl::accessor<cl::sycl::float4, 1, Mode, Target, cl::sycl::access::placeholder::false_t>& f1234;
+	const cl::sycl::accessor<cl::sycl::float4, 1, Mode, Target, cl::sycl::access::placeholder::false_t>& f5678;
 
 };
 
@@ -187,8 +187,8 @@ const auto collide = [](const Distributions& cellDistributions, const bool cellT
 };
 
 template <cl::sycl::access::target Target>
-const auto streamToNeighbours = [](const cl::sycl::int2 id, const int currentPos, const int width, const int height, const Distributions& currentCellDistributions,
-	const DistributionBuffers<Target> &outDistributionBuffers) {
+const auto streamToNeighbours = [](const cl::sycl::int2 id, const int currentPos, const ScreenSize &screenSize, const Distributions& currentCellDistributions,
+	const DistributionBuffers<Target, cl::sycl::access::mode::discard_write> &outDistributionBuffers) {
           
 
 	using namespace cl::sycl;
@@ -200,17 +200,17 @@ const auto streamToNeighbours = [](const cl::sycl::int2 id, const int currentPos
 
 	int8 x8 = int8(id.get_value(0));
 	int8 y8 = int8(id.get_value(1));
-	int8 width8 = int8(width);
+	int8 width8 = int8(screenSize.width);
 
 	int8 nX = x8 + int8(dirX[1], dirX[2], dirX[3], dirX[4], dirX[5], dirX[6], dirX[7], dirX[8]);
 	int8 nY = y8 + int8(dirY[1], dirY[2], dirY[3], dirY[4], dirY[5], dirY[6], dirY[7], dirY[8]);
 	int8 nPos = nX + width8 * nY;
 
 
-	int isNotRightBoundary = id.get_value(0) < int(width - 1); // Not on Right boundary
+	int isNotRightBoundary = id.get_value(0) < int(screenSize.width - 1); // Not on Right boundary
 	int isNotUpperBoundary = id.get_value(1) > int(0);                      // Not on Upper boundary
 	int isNotLeftBoundary = id.get_value(0) > int(0);                      // Not on Left boundary
-	int isNotLowerBoundary = id.get_value(1) < int(height - 1); // Not on lower boundary
+	int isNotLowerBoundary = id.get_value(1) < int(screenSize.height - 1); // Not on lower boundary
 
 	outDistributionBuffers.f0[currentPos] = currentCellDistributions.f0;
 

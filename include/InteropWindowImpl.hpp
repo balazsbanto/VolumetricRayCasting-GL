@@ -30,6 +30,14 @@
 #include <algorithm>
 #include <memory>       // std::unique_ptr
 
+struct ScreenSize {
+    int width = 0;
+    int height = 0;
+
+    float aspectRatio() {
+        return (float)width / height;
+    };
+};
 
 class InteropWindowImpl : public InteropWindow
 {
@@ -81,6 +89,7 @@ protected:
     float dist, phi, theta;                 // Mouse polar coordinates
     std::array<std::unique_ptr<cl::sycl::image<2>>, 2> latticeImages;   // Simulation data images
     bool needMatrixReset;                   // Whether matrices need to be reset in shaders
+    ScreenSize screenSize;
 
 private:
 

@@ -25,7 +25,7 @@ struct SphereBoundingBox {
 	float radius2 = 0.f;
 };
 
-auto getIntersections = [](const float3& rayorig, const float3& raydir, const SphereBoundingBox& boundingBox) {
+const auto getIntersections = [](const float3& rayorig, const float3& raydir, const SphereBoundingBox& boundingBox) {
 	const float3 sphereCenter{ boundingBox.center.x,  boundingBox.center.y,  boundingBox.center.z };
 	float3 l = sphereCenter - rayorig;
 	float tca = cl::sycl::dot(l, raydir);

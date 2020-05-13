@@ -121,6 +121,7 @@ void LatticeBoltzmann2D::resetScene() {
 	type_buffer = buffer<bool, 1>{ type_host, range<1> {getMeshSize()} };
 
 	writeOutputsToFile();
+	//setInput();
 }
 
 void LatticeBoltzmann2D::setInput() {
@@ -224,19 +225,17 @@ void LatticeBoltzmann2D::runOnCPU() {
 	auto velocity_out = velocity_buffer->get_access<access::mode::discard_write>();
 
 
-	int screen_width = width();
-	int screen_height = height();
-
-	for (int y = 0; y < screen_height; y++) {
-		for (int x = 0; x < screen_width; x++) {
+	for (int y = 0; y < screenSize.height; y++) {
+		for (int x = 0; x < screenSize.width; x++) {
 
 			int2 id(x, y);
-			int pos = id.get_value(0) + screen_width * id.get_value(1);
+			int pos = id.get_value(0) + screenSize.width * id.get_value(1);
 
 			auto cellAfterCollision = collide(Distributions{ if0[pos], if1234[pos], if5678[pos] }, type[pos]);
 
-			streamToNeighbours<access::target::host_buffer>(id, pos, screen_width, screen_height, cellAfterCollision.distributions,
-				DistributionBuffers<access::target::host_buffer>{ of0, of1234, of5678 });
+			streamToNeighbours<access::target::host_buffer>
+				(id, pos, screenSize, cellAfterCollision.distributions,
+				DistributionBuffers<access::target::host_buffer, access::mode::discard_write>{ of0, of1234, of5678 });
 
 			velocity_out[pos] = cellAfterCollision.velocity;
 
@@ -273,22 +272,19 @@ void LatticeBoltzmann2D::updateSceneImpl() {
 
 		auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::discard_write>(cgh);
 
-		int screen_width = width();
-		int screen_height = height();
-
-
 		cgh.parallel_for<kernels::Lbm>(range<2>{ new_lattice.get_range() },
-			[=, computefEq = computefEq, collide = collide, colorFunc = colorFunc, screen_width = screen_width, screen_height = screen_height](const item<2> i)
+			[=, screenSize = screenSize](const item<2> i)
 		{
 
 			int2 id = (int2)i.get_id();
 
-			int pos = id.get_value(0) + screen_width * id.get_value(1);
+			int pos = id.get_value(0) + screenSize.width * id.get_value(1);
 
 			auto cellAfterCollision = collide(Distributions{ if0[pos], if1234[pos], if5678[pos] }, type[pos]);
 
-			streamToNeighbours<access::target::global_buffer>(id, pos, screen_width, screen_height, cellAfterCollision.distributions,
-				DistributionBuffers<access::target::global_buffer>{ of0, of1234, of5678 });
+			streamToNeighbours<access::target::global_buffer>
+				(id, pos, screenSize, cellAfterCollision.distributions,
+				DistributionBuffers<access::target::global_buffer, access::mode::discard_write>{ of0, of1234, of5678 });
 
 			velocity_out[pos] = cellAfterCollision.velocity;
 			auto finalPixelColor = colorFunc(cellAfterCollision.velocity, cellAfterCollision.cellType);
