@@ -2,7 +2,6 @@
 #include <iomanip>
 #include <Lbm2DCommon.hpp>
 
-int fileIndex = 0;
 // Start equilibrium distribution for the current initial config (D2Q9, rho = 10) 
 const float F0_EQ = 4.4444444444f;
 const float F1234_EQ = 1.1111111111f;
@@ -121,7 +120,8 @@ void LatticeBoltzmann2D::resetScene() {
 	type_buffer = buffer<bool, 1>{ type_host, range<1> {getMeshSize()} };
 
 	writeOutputsToFile();
-	//setInput();
+	setInput();
+	writeOutputsToFile();
 }
 
 void LatticeBoltzmann2D::setInput() {
@@ -163,8 +163,10 @@ void LatticeBoltzmann2D::setInput() {
 }
 
 void LatticeBoltzmann2D::writeOutputsToFile() {
-	//fileIndex++;
+#ifndef WRITE_OUTPUT_TO_FILE
 	return;
+#endif // !WRITE_OUTPUT_TO_FILE
+	static int fileIndex = 0;
 
 	auto f0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
 	auto f1234 = f1234_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
@@ -202,12 +204,6 @@ void LatticeBoltzmann2D::writeOutputsToFile() {
 	velocity_file.close();
 
 	fileIndex++;
-
-
-	if (fileIndex == 3) {
-		setInput();
-		writeOutputsToFile();
-	}
 }
 #ifdef RUN_ON_CPU
 void LatticeBoltzmann2D::updateSceneImpl() {
@@ -246,11 +242,6 @@ void LatticeBoltzmann2D::updateSceneImpl() {
 
 		}
 	}
-
-	swapDataBuffers();
-
-	writeOutputsToFile();
-
 }
 #else
 void LatticeBoltzmann2D::updateSceneImpl() {

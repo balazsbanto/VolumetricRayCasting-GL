@@ -372,7 +372,10 @@ void RaycasterLatticeBoltzmann2D::swapDataBuffers() {
 }
 
 void RaycasterLatticeBoltzmann2D::writeOutputsToFile() {
+#ifndef WRITE_OUTPUT_TO_FILE
 	return;
+#endif // !WRITE_OUTPUT_TO_FILE
+
 	static int fileIndex = 0;
 
 	auto f0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
@@ -411,10 +414,4 @@ void RaycasterLatticeBoltzmann2D::writeOutputsToFile() {
 	velocity_file.close();
 
 	fileIndex++;
-
-
-	//if (fileIndex == 3) {
-	//	setInput();
-	//	writeOutputsToFile();
-	//}
 }

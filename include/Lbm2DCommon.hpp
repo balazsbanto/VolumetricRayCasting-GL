@@ -1,6 +1,7 @@
 #pragma once
 
-//#define RUN_ON_CPU
+#define RUN_ON_CPU
+#define WRITE_OUTPUT_TO_FILE
 
 struct Distributions {
 	float f0;
