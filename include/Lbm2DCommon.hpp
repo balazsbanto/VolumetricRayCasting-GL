@@ -1,5 +1,7 @@
 #pragma once
 
+//#define RUN_ON_CPU
+
 struct Distributions {
 	float f0;
 	cl::sycl::float4 f1234;
@@ -186,11 +188,15 @@ const auto collide = [](const Distributions& cellDistributions, const bool cellT
 	return CellData{ Distributions{f0, f1234, f5678}, u, type };
 };
 
-template <cl::sycl::access::target Target>
-const auto streamToNeighbours = [](const cl::sycl::int2 id, const int currentPos, const ScreenSize &screenSize, const Distributions& currentCellDistributions,
-	const DistributionBuffers<Target, cl::sycl::access::mode::discard_write> &outDistributionBuffers) {
+const auto streamToNeighbours = [](const cl::sycl::int2 id, const int currentPos, const ScreenSize &screenSize,
+	const Distributions& currentCellDistributions,
+#ifdef RUN_ON_CPU
+	const DistributionBuffers<cl::sycl::access::target::host_buffer, cl::sycl::access::mode::discard_write>& outDistributionBuffers
+#else
+	const DistributionBuffers<cl::sycl::access::target::global_buffer, cl::sycl::access::mode::discard_write>& outDistributionBuffers
+#endif
+	) {
           
-
 	using namespace cl::sycl;
 	// Propagate
 	// New positions to write (Each thread will write 8 values)

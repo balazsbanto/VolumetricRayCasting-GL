@@ -59,7 +59,6 @@ public:
 
 	~Raycaster() = default;
 
-	virtual virtual void resetScene() override;
 	virtual void mouseDragImpl(QMouseEvent* event_in) override;
 	virtual void updateSceneImpl() override = 0;
 	virtual void mouseWheelEventImpl(QWheelEvent* wheel_event) override;

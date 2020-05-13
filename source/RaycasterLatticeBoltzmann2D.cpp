@@ -2,6 +2,7 @@
 #include <iomanip>
 #include <Common.hpp>
 #include <Lbm2DCommon.hpp>
+
 namespace kernels { struct Raycaster_LBM2D; }
 using namespace cl::sycl;
 
@@ -9,9 +10,6 @@ using namespace cl::sycl;
 const float F0_EQ = 4.4444444444f;
 const float F1234_EQ = 1.1111111111f;
 const float F5678_EQ = 0.2777777777f;
-
-//#define RUN_ON_CPU
-
 
 const auto transformWorldCoordinates = [](const float3& worldLocation, const int extentLim, const int lbmSize ) {
 	return float3{ worldLocation.get_value(X) + extentLim, extentLim - worldLocation.get_value(Y), worldLocation.get_value(Z) } *(lbmSize / (2 * extentLim));
@@ -50,20 +48,14 @@ struct Lbm2DSpaceAccessors {
 };
 
 template <cl::sycl::access::target Target>
-#ifdef RUN_ON_CPU
 const auto raymarch = [](const float3& camPos, const float3& rayDirection, const float startT, const float endT,
 	const float stepSize, const std::array<std::array<float, 2>, 3 >& extent, const ScreenSize& screenSize,
 	const DistributionBuffers<Target, access::mode::read>& inDistributionBuffers,
-	const DistributionBuffers<Target, Mode2>& outDistributionBuffers
-	std::ofstream& rayPointsFile)
-#else
-const auto raymarch = [](const float3& camPos, const float3& rayDirection, const float startT, const float endT,
-	const float stepSize, const std::array<std::array<float, 2>, 3 >& extent, const ScreenSize &screenSize,
-	const DistributionBuffers<Target, access::mode::read>& inDistributionBuffers,
 	const Lbm2DSpaceAccessors<Target>& spaceAccessors
+#ifdef RUN_ON_CPU
+	, std::ofstream& rayPointsFile
+#endif // RUN_ON_CPU
 	)
-#endif 
-
 {
 	int saturationThreshold = 0;
 
@@ -92,8 +84,7 @@ const auto raymarch = [](const float3& camPos, const float3& rayDirection, const
 			auto cellAfterCollision = collide(Distributions{ inDistributionBuffers.f0[pos], inDistributionBuffers.f1234[pos],
 				inDistributionBuffers.f5678[pos] }, spaceAccessors.cellType[pos]);
 
-			streamToNeighbours<access::target::global_buffer>
-				(id, pos, screenSize, cellAfterCollision.distributions, spaceAccessors.distributions);
+			streamToNeighbours(id, pos, screenSize, cellAfterCollision.distributions, spaceAccessors.distributions);
 
 			spaceAccessors.velocity[pos] = cellAfterCollision.velocity;
 
@@ -102,11 +93,12 @@ const auto raymarch = [](const float3& camPos, const float3& rayDirection, const
 
 			finalColor += color;
 
-			isSaturated = finalColor.r() > saturationThreshold || finalColor.g() > saturationThreshold || finalColor.b() > saturationThreshold;
+			//isSaturated = finalColor.r() > saturationThreshold || finalColor.g() > saturationThreshold || finalColor.b() > saturationThreshold;
+			isSaturated = true;
 
 #ifdef RUN_ON_CPU
 			//if (cl::sycl::fabs(location.get_value(Z)) < stepSize) {
-			auto transformedToLbm = transformWorldCoordinates(location);
+			auto transformedToLbm = transformWorldCoordinates(location, 1, screenSize.width);
 			rayPointsFile << (int)transformedToLbm.get_value(X) << " " << (int)transformedToLbm.get_value(Y) << " " << transformedToLbm.get_value(Z) << "\n";
 			//}
 #endif
@@ -132,6 +124,18 @@ RaycasterLatticeBoltzmann2D::RaycasterLatticeBoltzmann2D(std::size_t plat,
 #ifdef RUN_ON_CPU
 void RaycasterLatticeBoltzmann2D::updateSceneImpl() {
 
+	auto if0 = f0_buffers[Buffer::Front]->get_access<access::mode::read>();
+	auto if1234 = f1234_buffers[Buffer::Front]->get_access<access::mode::read>();
+	auto if5678 = f5678_buffers[Buffer::Front]->get_access<access::mode::read>();
+	auto type = type_buffer.get_access<access::mode::read>();
+
+	// Output
+	auto of0 = f0_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
+	auto of1234 = f1234_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
+	auto of5678 = f5678_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
+	auto velocity_out = velocity_buffer->get_access<access::mode::discard_write>();
+
+
 	int screen_width = width();
 	int screen_height = height();
 	const float aspectRatio = (float)screen_width / screen_height;
@@ -145,8 +149,8 @@ void RaycasterLatticeBoltzmann2D::updateSceneImpl() {
 
 			int2 i{ x, y };
 
-			glm::vec4 rayVec((2 * (i.get_value(0) + 0.5f) / (float)screen_width - 1) * aspectRatio /* * scaleFOV */,
-				(1 - 2 * (i.get_value(1) + 0.5f) / (float)screen_height) /* * scaleFOV*/,
+			glm::vec4 rayVec((2 * (i.get_value(0) + 0.5f) / (float)screenSize.width - 1) * aspectRatio /* * scaleFOV */,
+				(1 - 2 * (i.get_value(1) + 0.5f) / (float)screenSize.height) /* * scaleFOV*/,
 				-1.0f, 1.0f);
 
 			// Quick switch to glm vectors to perform 4x4 matrix x vector multiplication, since SYCL has not have yet these operation
@@ -159,14 +163,26 @@ void RaycasterLatticeBoltzmann2D::updateSceneImpl() {
 			float4 pixelColor;
 			if (spherIntersection.isIntersected && spherIntersection.t0 > 0.0 && spherIntersection.t1 > 0.0)
 			{
-				rayPointsFile << "Start ray: " << x << " " << y << "\n";
-				pixelColor = raymarch(cameraPos, normalizedCamRayDir, spherIntersection.t0, spherIntersection.t1, stepSize, extent, rayPointsFile);
+				pixelColor = raymarch<access::target::host_buffer>
+					(cameraPos, normalizedCamRayDir, spherIntersection.t0, spherIntersection.t1, stepSize, extent, screenSize,
+						DistributionBuffers<access::target::host_buffer, access::mode::read>{ if0, if1234, if5678 },
+						Lbm2DSpaceAccessors< access::target::host_buffer > {
+					DistributionBuffers<access::target::host_buffer, access::mode::discard_write>{ of0, of1234, of5678 },
+						velocity_out, type },
+						rayPointsFile
+				);
 			}
 			// if we are inside the spehere, we trace from the the ray's original position
 			else if (spherIntersection.isIntersected && spherIntersection.t1 > 0.f)
 			{
-				rayPointsFile << "Start ray: " << x << " " << y << "\n";
-				pixelColor = raymarch(cameraPos, normalizedCamRayDir, 0.0, spherIntersection.t1, stepSize, extent, rayPointsFile);
+				pixelColor = raymarch<access::target::host_buffer>
+					(cameraPos, normalizedCamRayDir, 0.0, spherIntersection.t1, stepSize, extent, screenSize,
+						DistributionBuffers<access::target::host_buffer, access::mode::read>{ if0, if1234, if5678 },
+						Lbm2DSpaceAccessors< access::target::host_buffer > {
+					DistributionBuffers<access::target::host_buffer, access::mode::discard_write>{ of0, of1234, of5678 },
+						velocity_out, type },
+						rayPointsFile
+				);
 			}
 			else
 			{
@@ -356,8 +372,8 @@ void RaycasterLatticeBoltzmann2D::swapDataBuffers() {
 }
 
 void RaycasterLatticeBoltzmann2D::writeOutputsToFile() {
+	return;
 	static int fileIndex = 0;
-	//return;
 
 	auto f0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
 	auto f1234 = f1234_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();

@@ -23,7 +23,6 @@ public:
 	void writeOutputsToFile() override;
 
 	void setInput();
-	void runOnCPU();
 
 private:
 	// LBM D2Q9

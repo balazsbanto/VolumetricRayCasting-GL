@@ -380,9 +380,6 @@ void InteropWindowImpl::updateScene()
 	//         
 	//           See: opencl-1.2-extensions.pdf (Rev. 15. Chapter 9.8.5)
 
-	//runOnCPU();
-	//return;
-
 	cl::Event acquire, release;
 	
 	CLcommandqueues().at(dev_id).enqueueAcquireGLObjects(&interop_resources, nullptr, &acquire);

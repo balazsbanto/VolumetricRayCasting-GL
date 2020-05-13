@@ -209,8 +209,8 @@ void LatticeBoltzmann2D::writeOutputsToFile() {
 		writeOutputsToFile();
 	}
 }
-
-void LatticeBoltzmann2D::runOnCPU() {
+#ifdef RUN_ON_CPU
+void LatticeBoltzmann2D::updateSceneImpl() {
 	using namespace cl::sycl;
 
 	auto if0 = f0_buffers[Buffer::Front]->get_access<access::mode::read>();
@@ -233,9 +233,8 @@ void LatticeBoltzmann2D::runOnCPU() {
 
 			auto cellAfterCollision = collide(Distributions{ if0[pos], if1234[pos], if5678[pos] }, type[pos]);
 
-			streamToNeighbours<access::target::host_buffer>
-				(id, pos, screenSize, cellAfterCollision.distributions,
-				DistributionBuffers<access::target::host_buffer, access::mode::discard_write>{ of0, of1234, of5678 });
+			streamToNeighbours(id, pos, screenSize, cellAfterCollision.distributions
+				, DistributionBuffers<access::target::host_buffer, access::mode::discard_write>{ of0, of1234, of5678 });
 
 			velocity_out[pos] = cellAfterCollision.velocity;
 
@@ -253,8 +252,9 @@ void LatticeBoltzmann2D::runOnCPU() {
 	writeOutputsToFile();
 
 }
-
+#else
 void LatticeBoltzmann2D::updateSceneImpl() {
+
 	using namespace cl::sycl;
 	compute_queue.submit([&](cl::sycl::handler& cgh)
 	{
@@ -282,9 +282,9 @@ void LatticeBoltzmann2D::updateSceneImpl() {
 
 			auto cellAfterCollision = collide(Distributions{ if0[pos], if1234[pos], if5678[pos] }, type[pos]);
 
-			streamToNeighbours<access::target::global_buffer>
-				(id, pos, screenSize, cellAfterCollision.distributions,
-				DistributionBuffers<access::target::global_buffer, access::mode::discard_write>{ of0, of1234, of5678 });
+			streamToNeighbours(id, pos, screenSize, cellAfterCollision.distributions
+				, DistributionBuffers<access::target::global_buffer,
+					access::mode::discard_write>{ of0, of1234, of5678 });
 
 			velocity_out[pos] = cellAfterCollision.velocity;
 			auto finalPixelColor = colorFunc(cellAfterCollision.velocity, cellAfterCollision.cellType);
@@ -295,6 +295,7 @@ void LatticeBoltzmann2D::updateSceneImpl() {
 		});
 	});
 }
+#endif
 
 
 void LatticeBoltzmann2D::swapDataBuffers() {
