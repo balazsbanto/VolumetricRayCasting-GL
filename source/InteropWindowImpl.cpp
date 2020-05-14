@@ -29,6 +29,7 @@ InteropWindowImpl::InteropWindowImpl(std::size_t plat,
 void InteropWindowImpl::initializeGL()
 {
     qDebug("Raycaster: Entering initializeGL");
+    screenSize = ScreenSize{ width(), height() };
     std::unique_ptr<QOpenGLDebugLogger> log(new QOpenGLDebugLogger(this));
     if (!log->initialize()) qWarning("Raycaster: QDebugLogger failed to initialize");
 
@@ -129,7 +130,6 @@ void InteropWindowImpl::initializeGL()
 
 	setMatrices();
 	resetScene();
-    screenSize = ScreenSize{ width(), height() };
 
      qDebug("Raycaster: Leaving initializeGL");
 }

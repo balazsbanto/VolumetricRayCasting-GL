@@ -319,9 +319,9 @@ void RaycasterLatticeBoltzmann2D::resetScene() {
 void RaycasterLatticeBoltzmann2D::setInput() {
 	// Set a test velocity of { 0.4395f, 0.4395f } to (64, 10)
 	using namespace cl::sycl;
-	int x = 64;
-	int y = height() - 1 - 10;
-	int pos = x + width() * y;
+	int x = screenSize.width / 2;
+	int y = screenSize.height - 1 - screenSize.height / 2;
+	int pos = x + screenSize.width * y;
 
 	auto if0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
 	auto if1234 = f1234_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
@@ -337,7 +337,7 @@ void RaycasterLatticeBoltzmann2D::setInput() {
 	// Increase the speed by input speed
 	//velocity_out[pos] += dragVelocity;
 
-	float2 newVel = velocity_out[pos] + float2{ 0.4395f, 0.4395f };;
+	float2 newVel = velocity_out[pos] + float2{ 1.0f, 1.0f };
 
 	// Calculate new distribution based on input speed
 
