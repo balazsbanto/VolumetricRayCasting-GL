@@ -163,8 +163,12 @@ void RaycasterLatticeBoltzmann2D::updateSceneImpl() {
 			auto spherIntersection = getIntersections(cameraPos, normalizedCamRayDir, sphereBoundigBox);
 
 			float4 pixelColor;
-			if (spherIntersection.isIntersected && spherIntersection.t0 > 0.0 && spherIntersection.t1 > 0.0)
+			if (spherIntersection.isIntersected)
 			{
+				if (spherIntersection.t0 < 0.f) {
+					spherIntersection.t0 = 0.f;
+				}
+
 				pixelColor = raymarch<access::target::host_buffer>()
 					(cameraPos, normalizedCamRayDir, spherIntersection.t0, spherIntersection.t1, stepSize, extent, screenSize,
 						DistributionBuffers<access::target::host_buffer, access::mode::read>{ if0, if1234, if5678 },
@@ -175,17 +179,6 @@ void RaycasterLatticeBoltzmann2D::updateSceneImpl() {
 				);
 			}
 			// if we are inside the spehere, we trace from the the ray's original position
-			else if (spherIntersection.isIntersected && spherIntersection.t1 > 0.f)
-			{
-				pixelColor = raymarch<access::target::host_buffer>()
-					(cameraPos, normalizedCamRayDir, 0.0, spherIntersection.t1, stepSize, extent, screenSize,
-						DistributionBuffers<access::target::host_buffer, access::mode::read>{ if0, if1234, if5678 },
-						Lbm2DSpaceAccessors< access::target::host_buffer > {
-					DistributionBuffers<access::target::host_buffer, access::mode::discard_write>{ of0, of1234, of5678 },
-						velocity_out, type },
-						rayPointsFile
-				);
-			}
 			else
 			{
 				pixelColor = float4(0.f, 0.f, 0.f, 1.f);
@@ -236,25 +229,19 @@ void RaycasterLatticeBoltzmann2D::updateSceneImpl() {
 			auto spherIntersection = getIntersections(cameraPos, normalizedCamRayDir, sphereBoundigBox);
 
 			float4 pixelColor;
-			if (spherIntersection.isIntersected && spherIntersection.t0 > 0.0 && spherIntersection.t1 > 0.0)
+			if (spherIntersection.isIntersected)
 			{
+				// if we are already inside the bounding sphere, we start from the ray current position
+				if (spherIntersection.t0 < 0.f) {
+					spherIntersection.t0 = 0.f;
+				}
+
 				pixelColor = raymarch<access::target::global_buffer>()
 					(cameraPos, normalizedCamRayDir, spherIntersection.t0, spherIntersection.t1, stepSize, extent, screenSize,
 						DistributionBuffers<access::target::global_buffer, access::mode::read>{ if0, if1234, if5678 },
 						Lbm2DSpaceAccessors< access::target::global_buffer > {
 							DistributionBuffers<access::target::global_buffer, access::mode::discard_write>{ of0, of1234, of5678 },
 								velocity_out, type }
-					);
-			}
-			// if we are inside the spehere, we trace from the the ray's original position
-			else if (spherIntersection.isIntersected && spherIntersection.t1 > 0.f)
-			{
-				pixelColor = raymarch<access::target::global_buffer>()
-					(cameraPos, normalizedCamRayDir, 0.0, spherIntersection.t1, stepSize, extent, screenSize,
-						DistributionBuffers<access::target::global_buffer, access::mode::read>{ if0, if1234, if5678 },
-						Lbm2DSpaceAccessors< access::target::global_buffer > {
-							DistributionBuffers<access::target::global_buffer, access::mode::discard_write>{ of0, of1234, of5678 },
-							velocity_out, type }
 					);
 			}
 			else
