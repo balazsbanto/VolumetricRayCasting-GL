@@ -229,7 +229,7 @@ void LatticeBoltzmann2D::updateSceneImpl() {
 
 			auto cellAfterCollision = collide(Distributions{ if0[pos], if1234[pos], if5678[pos] }, type[pos]);
 
-			streamToNeighbours(id, pos, screenSize, cellAfterCollision.distributions
+			streamToNeighbours< access::target::host_buffer >()(id, pos, screenSize, cellAfterCollision.distributions
 				, DistributionBuffers<access::target::host_buffer, access::mode::discard_write>{ of0, of1234, of5678 });
 
 			velocity_out[pos] = cellAfterCollision.velocity;
@@ -273,7 +273,7 @@ void LatticeBoltzmann2D::updateSceneImpl() {
 
 			auto cellAfterCollision = collide(Distributions{ if0[pos], if1234[pos], if5678[pos] }, type[pos]);
 
-			streamToNeighbours(id, pos, screenSize, cellAfterCollision.distributions
+			streamToNeighbours< access::target::global_buffer >()(id, pos, screenSize, cellAfterCollision.distributions
 				, DistributionBuffers<access::target::global_buffer,
 					access::mode::discard_write>{ of0, of1234, of5678 });
 

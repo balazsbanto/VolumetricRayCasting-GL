@@ -48,14 +48,15 @@ struct Lbm2DSpaceAccessors {
 };
 
 template <cl::sycl::access::target Target>
-const auto raymarch = [](const float3& camPos, const float3& rayDirection, const float startT, const float endT,
+struct raymarch {
+	float4 operator()(const float3& camPos, const float3& rayDirection, const float startT, const float endT,
 	const float stepSize, const std::array<std::array<float, 2>, 3 >& extent, const ScreenSize& screenSize,
 	const DistributionBuffers<Target, access::mode::read>& inDistributionBuffers,
 	const Lbm2DSpaceAccessors<Target>& spaceAccessors
 #ifdef RUN_ON_CPU
 	, std::ofstream& rayPointsFile
 #endif // RUN_ON_CPU
-	)
+	) const
 {
 	int saturationThreshold = 0;
 
@@ -84,7 +85,7 @@ const auto raymarch = [](const float3& camPos, const float3& rayDirection, const
 			auto cellAfterCollision = collide(Distributions{ inDistributionBuffers.f0[pos], inDistributionBuffers.f1234[pos],
 				inDistributionBuffers.f5678[pos] }, spaceAccessors.cellType[pos]);
 
-			streamToNeighbours(id, pos, screenSize, cellAfterCollision.distributions, spaceAccessors.distributions);
+			streamToNeighbours<Target >()(id, pos, screenSize, cellAfterCollision.distributions, spaceAccessors.distributions);
 
 			spaceAccessors.velocity[pos] = cellAfterCollision.velocity;
 
@@ -111,6 +112,7 @@ const auto raymarch = [](const float3& camPos, const float3& rayDirection, const
 	finalColor.set_value(W, 1.f);
 
 	return finalColor;
+}
 };
 
 RaycasterLatticeBoltzmann2D::RaycasterLatticeBoltzmann2D(std::size_t plat,
@@ -163,7 +165,7 @@ void RaycasterLatticeBoltzmann2D::updateSceneImpl() {
 			float4 pixelColor;
 			if (spherIntersection.isIntersected && spherIntersection.t0 > 0.0 && spherIntersection.t1 > 0.0)
 			{
-				pixelColor = raymarch<access::target::host_buffer>
+				pixelColor = raymarch<access::target::host_buffer>()
 					(cameraPos, normalizedCamRayDir, spherIntersection.t0, spherIntersection.t1, stepSize, extent, screenSize,
 						DistributionBuffers<access::target::host_buffer, access::mode::read>{ if0, if1234, if5678 },
 						Lbm2DSpaceAccessors< access::target::host_buffer > {
@@ -175,7 +177,7 @@ void RaycasterLatticeBoltzmann2D::updateSceneImpl() {
 			// if we are inside the spehere, we trace from the the ray's original position
 			else if (spherIntersection.isIntersected && spherIntersection.t1 > 0.f)
 			{
-				pixelColor = raymarch<access::target::host_buffer>
+				pixelColor = raymarch<access::target::host_buffer>()
 					(cameraPos, normalizedCamRayDir, 0.0, spherIntersection.t1, stepSize, extent, screenSize,
 						DistributionBuffers<access::target::host_buffer, access::mode::read>{ if0, if1234, if5678 },
 						Lbm2DSpaceAccessors< access::target::host_buffer > {
@@ -236,7 +238,7 @@ void RaycasterLatticeBoltzmann2D::updateSceneImpl() {
 			float4 pixelColor;
 			if (spherIntersection.isIntersected && spherIntersection.t0 > 0.0 && spherIntersection.t1 > 0.0)
 			{
-				pixelColor = raymarch<access::target::global_buffer>
+				pixelColor = raymarch<access::target::global_buffer>()
 					(cameraPos, normalizedCamRayDir, spherIntersection.t0, spherIntersection.t1, stepSize, extent, screenSize,
 						DistributionBuffers<access::target::global_buffer, access::mode::read>{ if0, if1234, if5678 },
 						Lbm2DSpaceAccessors< access::target::global_buffer > {
@@ -247,7 +249,7 @@ void RaycasterLatticeBoltzmann2D::updateSceneImpl() {
 			// if we are inside the spehere, we trace from the the ray's original position
 			else if (spherIntersection.isIntersected && spherIntersection.t1 > 0.f)
 			{
-				pixelColor = raymarch<access::target::global_buffer>
+				pixelColor = raymarch<access::target::global_buffer>()
 					(cameraPos, normalizedCamRayDir, 0.0, spherIntersection.t1, stepSize, extent, screenSize,
 						DistributionBuffers<access::target::global_buffer, access::mode::read>{ if0, if1234, if5678 },
 						Lbm2DSpaceAccessors< access::target::global_buffer > {

@@ -1,8 +1,8 @@
 #pragma once
 
-#define RUN_ON_CPU
-#define WRITE_OUTPUT_TO_FILE
-
+//#define RUN_ON_CPU
+//#define WRITE_OUTPUT_TO_FILE
+namespace {
 struct Distributions {
 	float f0;
 	cl::sycl::float4 f1234;
@@ -189,14 +189,12 @@ const auto collide = [](const Distributions& cellDistributions, const bool cellT
 	return CellData{ Distributions{f0, f1234, f5678}, u, type };
 };
 
-const auto streamToNeighbours = [](const cl::sycl::int2 id, const int currentPos, const ScreenSize &screenSize,
+template <cl::sycl::access::target Target>
+struct streamToNeighbours {
+void operator()(const cl::sycl::int2 id, const int currentPos, const ScreenSize &screenSize,
 	const Distributions& currentCellDistributions,
-#ifdef RUN_ON_CPU
-	const DistributionBuffers<cl::sycl::access::target::host_buffer, cl::sycl::access::mode::discard_write>& outDistributionBuffers
-#else
-	const DistributionBuffers<cl::sycl::access::target::global_buffer, cl::sycl::access::mode::discard_write>& outDistributionBuffers
-#endif
-	) {
+	const DistributionBuffers<Target, cl::sycl::access::mode::discard_write>& outDistributionBuffers
+	) const {
           
 	using namespace cl::sycl;
 	// Propagate
@@ -261,4 +259,6 @@ const auto streamToNeighbours = [](const cl::sycl::int2 id, const int currentPos
 		outDistributionBuffers.f5678[nPos.get_value(7)].set_value(3, currentCellDistributions.f5678.get_value(3));
 	}
 
+}
 };
+}
