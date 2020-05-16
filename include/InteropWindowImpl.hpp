@@ -67,7 +67,7 @@ public:
     virtual void writeOutputsToFile() {};
     virtual void updateSceneImpl() = 0;  
 
-    size_t getMeshSize();
+    size_t getNrOfPixels();
     void swapBuffers();
     void mouseDrag(QMouseEvent* event_in);  // Handle mouse dragging
     void mouseWheelEvent(QWheelEvent* wheel_event);  // Handle mouse dragging

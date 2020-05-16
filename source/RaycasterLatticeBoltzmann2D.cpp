@@ -16,26 +16,6 @@ const auto transformWorldCoordinates = [](const float3& worldLocation, const int
 };
 
 
-const auto densityFunc = [](const float3& lbmSpaceCoordinates)
-{
-	return 1;
-};
-
-// color according to the incoming density
-//const auto colorFunc = [](const int density)
-//{
-//	if (density > 0)
-//	{
-//		return float4(0, 0, 1, 1); // blue
-//	}
-//	else if (density < 0)
-//	{
-//		return float4(1, 1, 0, 1); // yellow
-//	}
-//	else
-//		return  float4(0, 0, 0, 1); // black
-//};
-
 template <cl::sycl::access::target Target>
 struct Lbm2DSpaceAccessors {
 	const DistributionBuffers<Target, cl::sycl::access::mode::discard_write> &distributions;
@@ -90,7 +70,6 @@ struct raymarch {
 			spaceAccessors.velocity[pos] = cellAfterCollision.velocity;
 
 			float4 color = colorFunc(cellAfterCollision.velocity, cellAfterCollision.cellType);
-			//float4 color = colorFunc(densityFunc(transformWorldCoordinates(location)));
 
 			finalColor += color;
 
@@ -262,31 +241,26 @@ void RaycasterLatticeBoltzmann2D::resetScene() {
 	using namespace cl::sycl;
 
 	// Initial velocity is 0
-	type_host = new bool[getMeshSize()];
-	f0_host[Buffer::Front] = std::vector<float>(getMeshSize(), F0_EQ);
-	f1234_host[Buffer::Front] = std::vector<float4>(getMeshSize(), float4{ F1234_EQ });
-	f5678_host[Buffer::Front] = std::vector<float4>(getMeshSize(), float4{ F5678_EQ });
+	type_host = new bool[getNrOfPixels()];
+	f0_host[Buffer::Front] = std::vector<float>(getNrOfPixels(), F0_EQ);
+	f1234_host[Buffer::Front] = std::vector<float4>(getNrOfPixels(), float4{ F1234_EQ });
+	f5678_host[Buffer::Front] = std::vector<float4>(getNrOfPixels(), float4{ F5678_EQ });
 
 	f0_host[Buffer::Back] = f0_host[Buffer::Front];
 	f1234_host[Buffer::Back] = f1234_host[Buffer::Front];
 	f5678_host[Buffer::Back] = f5678_host[Buffer::Front];
 
-	f0_buffers[Buffer::Front] = std::make_unique<buffer<float, 1>>(f0_host[Buffer::Front].data(), range<1> {getMeshSize()});
-	f1234_buffers[Buffer::Front] = std::make_unique<buffer<float4, 1>>(f1234_host[Buffer::Front].data(), range<1> {getMeshSize()});
-	f5678_buffers[Buffer::Front] = std::make_unique<buffer<float4, 1>>(f5678_host[Buffer::Front].data(), range<1> { getMeshSize()});
+	f0_buffers[Buffer::Front] = std::make_unique<buffer<float, 1>>(f0_host[Buffer::Front].data(), range<1> {getNrOfPixels()});
+	f1234_buffers[Buffer::Front] = std::make_unique<buffer<float4, 1>>(f1234_host[Buffer::Front].data(), range<1> {getNrOfPixels()});
+	f5678_buffers[Buffer::Front] = std::make_unique<buffer<float4, 1>>(f5678_host[Buffer::Front].data(), range<1> { getNrOfPixels()});
 
 
-	f0_buffers[Buffer::Back] = std::make_unique<buffer<float, 1>>(f0_host[Buffer::Back].data(), range<1> {getMeshSize()});
-	f1234_buffers[Buffer::Back] = std::make_unique<buffer<float4, 1>>(f1234_host[Buffer::Back].data(), range<1> {getMeshSize()});
-	f5678_buffers[Buffer::Back] = std::make_unique<buffer<float4, 1>>(f5678_host[Buffer::Back].data(), range<1> { getMeshSize()});
+	f0_buffers[Buffer::Back] = std::make_unique<buffer<float, 1>>(f0_host[Buffer::Back].data(), range<1> {getNrOfPixels()});
+	f1234_buffers[Buffer::Back] = std::make_unique<buffer<float4, 1>>(f1234_host[Buffer::Back].data(), range<1> {getNrOfPixels()});
+	f5678_buffers[Buffer::Back] = std::make_unique<buffer<float4, 1>>(f5678_host[Buffer::Back].data(), range<1> { getNrOfPixels()});
 
-	velocity_host = std::vector<float2>(getMeshSize(), float2{ 0.f, 0.f });
-	velocity_buffer = std::make_unique< buffer<float2, 1>>(velocity_host.data(), range<1> { getMeshSize()});
-
-	// Vector with contants
-	h_dirX_buffer = buffer<int, 1>{ h_dirX.data(), range<1> {h_dirX.size()} };
-	h_dirY_buffer = buffer<int, 1>{ h_dirY.data(), range<1> {h_dirY.size()} };
-	h_weigt_buffer = buffer<float, 1>{ w.data(), range<1> {w.size()} };
+	velocity_host = std::vector<float2>(getNrOfPixels(), float2{ 0.f, 0.f });
+	velocity_buffer = std::make_unique< buffer<float2, 1>>(velocity_host.data(), range<1> { getNrOfPixels()});
 
 
 	for (int y = 0; y < height(); y++) {
@@ -309,7 +283,7 @@ void RaycasterLatticeBoltzmann2D::resetScene() {
 		}
 	}
 
-	type_buffer = buffer<bool, 1>{ type_host, range<1> {getMeshSize()} };
+	type_buffer = buffer<bool, 1>{ type_host, range<1> {getNrOfPixels()} };
 
 	writeOutputsToFile();
 	setInput();

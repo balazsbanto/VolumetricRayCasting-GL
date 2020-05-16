@@ -360,7 +360,7 @@ void InteropWindowImpl::setMatrices()
 }
 
 
-size_t InteropWindowImpl::getMeshSize() {
+size_t InteropWindowImpl::getNrOfPixels() {
 	return width() * height();
 }
 

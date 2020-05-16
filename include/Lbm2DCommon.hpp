@@ -165,10 +165,6 @@ const auto collide = [](const Distributions& cellDistributions, const bool cellT
 		float4 fEq5678;
 		float fEq0;
 
-		if (uX > 0 || uY > 0) {
-			int breakpointHere = 1;
-		}
-
 		//Compute fEq
 		fEq0 = computefEq(rho, weight[0], float2{ 0, 0 }, u);
 		fEq1234.set_value(0, computefEq(rho, weight[1], float2{ dirX[1], dirY[1] }, u));

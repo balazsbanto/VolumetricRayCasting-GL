@@ -43,11 +43,7 @@ private:
 	std::vector<int> h_dirX{ 0, 1, 0, -1,  0, 1, -1,  -1,  1 };
 	std::vector<int> h_dirY{ 0, 0, 1,  0, -1, 1,  1,  -1, -1 };
 
-	cl::sycl::buffer<int, 1> h_dirX_buffer;
-	cl::sycl::buffer<int, 1> h_dirY_buffer;
-
 	// Weights
 	std::vector<float> w{ 4.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0 };
-	cl::sycl::buffer<float, 1> h_weigt_buffer;
 
 };
