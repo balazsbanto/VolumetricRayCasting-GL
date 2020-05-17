@@ -2,11 +2,14 @@
 #include <iomanip>
 #include <Common.hpp>
 
+//#define RUN_ON_CPU
+//#define WRITE_OUTPUT_TO_FILE
+
 namespace kernels { struct Raycaster_LBM3D; }
 using namespace cl::sycl;
 
 const auto sumF2 = [](const cl::sycl::float2& f) {
-	int sum = 0;
+	float sum = 0;
 	for (int i = 0; i < f.get_count(); i++) {
 		sum += f.get_value(i);
 	}
@@ -14,7 +17,7 @@ const auto sumF2 = [](const cl::sycl::float2& f) {
 };
 
 const auto sumF4 = [](const cl::sycl::float4& f) {
-	int sum = 0;
+	float sum = 0;
 	for (int i = 0; i < f.get_count(); i++) {
 		sum += f.get_value(i);
 	}
@@ -22,7 +25,7 @@ const auto sumF4 = [](const cl::sycl::float4& f) {
 };
 
 const auto sumF8 = [](const cl::sycl::float8& f) {
-	int sum = 0;
+	float sum = 0;
 	for (int i = 0; i < f.get_count(); i++) {
 		sum += f.get_value(i);
 	}
@@ -162,7 +165,7 @@ const auto calculateVelocity = [](const Distributions& cellDistributions, const 
 	float3 velocity{ 0,0,0, };
 
 	velocity = cellDistributions.f0 * unitDirVectors[0];
-	int vIndex = 0;
+	int vIndex = 1;
 	for (int i = 0; i < cellDistributions.f1to4.get_count(); i++) {
 		velocity += cellDistributions.f1to4.get_value(i) * unitDirVectors[vIndex++];
 	}
@@ -374,7 +377,9 @@ struct raymarch {
 
 		bool isSaturated = false;
 
-		while (current_t < endT /*&& !isSaturated*/)
+		bool rayWentOutside = false;
+		bool rayWasInside = false;
+		while (current_t < endT && !rayWentOutside)
 		{
 			location += stepSize * rayDirection;
 			current_t += stepSize;
@@ -402,9 +407,14 @@ struct raymarch {
 #ifdef RUN_ON_CPU
 				//if (cl::sycl::fabs(location.get_value(Z)) < stepSize) {
 				auto transformedToLbm = transformWorldCoordinates(location, int(extent[0][1]), meshDim.get_value(0));
-				rayPointsFile << (int)transformedToLbm.get_value(X) << " " << (int)transformedToLbm.get_value(Y) << " " << transformedToLbm.get_value(Z) << "\n";
+				rayPointsFile << pos << " xyz " << (int)transformedToLbm.get_value(X) << " " << (int)transformedToLbm.get_value(Y) << " " << (int)transformedToLbm.get_value(Z) << "\n";
 				//}
 #endif
+				rayWasInside = true;
+			}
+			else {
+				if (rayWasInside)
+					rayWentOutside = true;
 			}
 		}
 
@@ -427,29 +437,37 @@ RaycasterLbm3D::RaycasterLbm3D(std::size_t plat,
 
 #ifdef RUN_ON_CPU
 void RaycasterLbm3D::updateSceneImpl() {
+	using namespace cl::sycl;
 
+	// Input buffers
 	auto if0 = f0_buffers[Buffer::Front]->get_access<access::mode::read>();
-	auto if1234 = f1234_buffers[Buffer::Front]->get_access<access::mode::read>();
-	auto if5678 = f5678_buffers[Buffer::Front]->get_access<access::mode::read>();
-	auto type = type_buffer.get_access<access::mode::read>();
+	auto if1to4 = f1to4_buffers[Buffer::Front]->get_access<access::mode::read>();
+	auto if56 = f56_buffers[Buffer::Front]->get_access<access::mode::read>();
+	auto if7to14 = f7to14_buffers[Buffer::Front]->get_access<access::mode::read>();
+	auto if15to18 = f15to18_buffers[Buffer::Front]->get_access<access::mode::read>();
 
-	// Output
+	auto cellType = type_buffer.get_access<access::mode::read>();
+
+	// Output buffers
 	auto of0 = f0_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
-	auto of1234 = f1234_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
-	auto of5678 = f5678_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
+	auto of1to4 = f1to4_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
+	auto of56 = f56_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
+	auto of7to14 = f7to14_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
+	auto of15to18 = f15to18_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
+
 	auto velocity_out = velocity_buffer->get_access<access::mode::discard_write>();
 
 
-	int screen_width = width();
-	int screen_height = height();
-	const float aspectRatio = (float)screen_width / screen_height;
+	auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::discard_write>();
+
+	const float aspectRatio = screenSize.aspectRatio();
 	auto ViewToWorldMtx = m_viewToWorldMtx;
 	auto camPosGlm = m_vecEye;
 
 	std::ofstream rayPointsFile("rayPointsFile.txt");
 
-	for (int y = 0; y < screen_height; y++) {
-		for (int x = 0; x < screen_width; x++) {
+	for (int y = 0; y < screenSize.height; y++) {
+		for (int x = 0; x < screenSize.width; x++) {
 
 			int2 i{ x, y };
 
@@ -467,20 +485,18 @@ void RaycasterLbm3D::updateSceneImpl() {
 			float4 pixelColor;
 			if (spherIntersection.isIntersected)
 			{
+				// if we are already inside the bounding sphere, we start from the ray current position
 				if (spherIntersection.t0 < 0.f) {
 					spherIntersection.t0 = 0.f;
 				}
 
 				pixelColor = raymarch<access::target::host_buffer>()
-					(cameraPos, normalizedCamRayDir, spherIntersection.t0, spherIntersection.t1, stepSize, extent, screenSize,
-						DistributionBuffers<access::target::host_buffer, access::mode::read>{ if0, if1234, if5678 },
+					(cameraPos, normalizedCamRayDir, spherIntersection.t0, spherIntersection.t1, stepSize, extent, meshDim,
+						DistributionBuffers<access::target::host_buffer, access::mode::read> { if0, if1to4, if56, if7to14, if15to18},
 						Lbm2DSpaceAccessors< access::target::host_buffer > {
-					DistributionBuffers<access::target::host_buffer, access::mode::discard_write>{ of0, of1234, of5678 },
-						velocity_out, type },
-						rayPointsFile
-						);
+					DistributionBuffers<access::target::host_buffer, access::mode::discard_write>{ of0, of1to4, of56, of7to14, of15to18},
+						velocity_out, cellType}, rayPointsFile);
 			}
-			// if we are inside the spehere, we trace from the the ray's original position
 			else
 			{
 				pixelColor = float4(0.f, 0.f, 0.f, 1.f);
@@ -605,7 +621,7 @@ void RaycasterLbm3D::resetScene() {
 		for (int x = 0; x < meshDim.get_value(X); x++) {
 			for (int z = 0; z < meshDim.get_value(Z); z++) {
 
-				int pos = getIndex(int3{ x, y, y }, meshDim);
+				int pos = getIndex(int3{ x, y, z }, meshDim);
 
 				// Initialize boundary cells
 				if (x == 0 || x == (meshDim.get_value(X) - 1) || y == 0 || y == (meshDim.get_value(Y) - 1)
@@ -625,7 +641,7 @@ void RaycasterLbm3D::resetScene() {
 
 	type_buffer = buffer<bool, 1>{ type_host, range<1> {meshSize} };
 
-	writeOutputsToFile();
+	//writeOutputsToFile();
 	setInput();
 	writeOutputsToFile();
 }
@@ -696,6 +712,7 @@ void RaycasterLbm3D::writeOutputsToFile() {
 	return;
 #endif // !WRITE_OUTPUT_TO_FILE
 
+	return;
 	static int fileIndex = 0;
 
 	auto f0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
