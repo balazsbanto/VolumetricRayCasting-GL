@@ -2,8 +2,8 @@
 #include <iomanip>
 #include <Common.hpp>
 
-//#define RUN_ON_CPU
-//#define WRITE_OUTPUT_TO_FILE
+#define RUN_ON_CPU
+#define WRITE_OUTPUT_TO_FILE
 
 namespace kernels { struct Raycaster_LBM3D; }
 using namespace cl::sycl;
@@ -185,7 +185,7 @@ const auto calculateVelocity = [](const Distributions& cellDistributions, const 
 	return velocity;
 };
 
-const auto collide = [h_dir = h_dir, h_weight = h_weight](const Distributions& inCellDistributions, const bool cellType) {
+const auto collide = [](const Distributions& inCellDistributions, const bool cellType) {
 	using namespace cl::sycl;
 
 	// (1/relaxation time) Related to viscosity 
@@ -252,7 +252,7 @@ const auto collide = [h_dir = h_dir, h_weight = h_weight](const Distributions& i
 										(1 - omega) * inCellDistributions.f1to4 + omega * fEq1to4,
 										(1 - omega) * inCellDistributions.f56 + omega * fEq56,
 										(1 - omega) * inCellDistributions.f7to14 + omega * fEq7to14,
-										(1 - omega) * inCellDistributions.f15to18 + omega * fEq15to18, };
+										(1 - omega) * inCellDistributions.f15to18 + omega * fEq15to18};
 	}
 
 	return CellData{ outDistribution, u, cellType };
@@ -386,7 +386,6 @@ struct raymarch {
 
 			if (isInside(extent, location)) {
 
-				//float4 color(0.0f, 0.0f, 0.0f, 0.0f);
 				auto lbmSpaceCoordinates = transformWorldCoordinates(location, int(extent[0][1]), meshDim.get_value(0));
 				int3 id{ int(lbmSpaceCoordinates.get_value(X)), int(lbmSpaceCoordinates.get_value(Y)),  int(lbmSpaceCoordinates.get_value(Y)) };
 
@@ -400,7 +399,6 @@ struct raymarch {
 				spaceAccessors.velocity[pos] = cellAfterCollision.velocity;
 
 				float4 color = colorFunc(cellAfterCollision.velocity, cellAfterCollision.cellType);
-				//float4 color = colorFunc(densityFunc(transformWorldCoordinates(location)));
 
 				finalColor += color;
 
@@ -712,7 +710,6 @@ void RaycasterLbm3D::writeOutputsToFile() {
 	return;
 #endif // !WRITE_OUTPUT_TO_FILE
 
-	return;
 	static int fileIndex = 0;
 
 	auto f0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
@@ -767,4 +764,6 @@ void RaycasterLbm3D::writeOutputsToFile() {
 	f7to14_file.close();
 	f15to18_file.close();
 	velocity_file.close();
+
+	fileIndex++;
 }
