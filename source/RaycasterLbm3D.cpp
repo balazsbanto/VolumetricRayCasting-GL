@@ -2,7 +2,7 @@
 #include <iomanip>
 #include <Common.hpp>
 
-#define RUN_ON_CPU
+//#define RUN_ON_CPU
 #define WRITE_OUTPUT_TO_FILE
 
 namespace kernels { struct Raycaster_LBM3D; }
@@ -133,7 +133,7 @@ const auto colorFunc = [](cl::sycl::float3 inVelocity, bool isBoundary) {
 };
 
 
-const auto computefEq = [](const float rho, const float weight, const cl::sycl::float3 dir, const cl::sycl::float3 velocity) {
+const auto computefEq = [](const float rho, const float weight, const cl::sycl::float3 &dir, const cl::sycl::float3 &velocity) {
 
 	float u2 = cl::sycl::dot(velocity, velocity);
 	float eu = cl::sycl::dot(dir, velocity);
@@ -366,8 +366,6 @@ struct raymarch {
 #endif // RUN_ON_CPU
 		) const
 	{
-		int saturationThreshold = 0;
-
 		float4 finalColor(0.0f, 0.0f, 0.0f, 0.0f);
 		float3 location(0.0f, 0.0f, 0.0f);
 
@@ -387,7 +385,7 @@ struct raymarch {
 			if (isInside(extent, location)) {
 
 				auto lbmSpaceCoordinates = transformWorldCoordinates(location, int(extent[0][1]), meshDim.get_value(0));
-				int3 id{ int(lbmSpaceCoordinates.get_value(X)), int(lbmSpaceCoordinates.get_value(Y)),  int(lbmSpaceCoordinates.get_value(Y)) };
+				int3 id{ int(lbmSpaceCoordinates.get_value(X)), int(lbmSpaceCoordinates.get_value(Y)),  int(lbmSpaceCoordinates.get_value(Z)) };
 
 				int pos = getIndex(id, meshDim);
 
@@ -404,8 +402,7 @@ struct raymarch {
 
 #ifdef RUN_ON_CPU
 				//if (cl::sycl::fabs(location.get_value(Z)) < stepSize) {
-				auto transformedToLbm = transformWorldCoordinates(location, int(extent[0][1]), meshDim.get_value(0));
-				rayPointsFile << pos << " xyz " << (int)transformedToLbm.get_value(X) << " " << (int)transformedToLbm.get_value(Y) << " " << (int)transformedToLbm.get_value(Z) << "\n";
+				rayPointsFile << pos << " xyz " << id.get_value(X) << " " << id.get_value(Y) << " " << id.get_value(Z) << "\n";
 				//}
 #endif
 				rayWasInside = true;
@@ -581,7 +578,8 @@ void RaycasterLbm3D::updateSceneImpl() {
 void RaycasterLbm3D::resetScene() {
 	
 	using namespace cl::sycl;
-	meshDim = int3{ screenSize.width, screenSize.width, screenSize.width };
+	meshDim = int3{ 10, 10, 10 };
+	//meshDim = int3{ screenSize.width, screenSize.width, screenSize.width };
 	size_t meshSize = meshDim.get_value(X) * meshDim.get_value(Y) * meshDim.get_value(Z);
 	// Initial velocity is 0
 	type_host = new bool[meshSize];
