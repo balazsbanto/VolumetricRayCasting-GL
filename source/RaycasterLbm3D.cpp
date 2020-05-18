@@ -198,20 +198,41 @@ const auto collide = [](const Distributions& inCellDistributions, const bool cel
 
 	//boundary
 	if (cellType) {
-		// Swap directions by swizzling // Ez igy nem jo, de ez csak a hataroknal jelent problemat
-		/*f1234.x() = f1234.z();
-		f1234.y() = f1234.w();
-		f1234.z() = f1234.x();
-		f1234.w() = f1234.y();
-
-		f5678.x() = f5678.z();
-		f5678.y() = f5678.w();
-		f5678.z() = f5678.x();
-		f5678.w() = f5678.y();*/
 
 		rho = 0;
 		u = float3{ 0.f, 0.f, 0.f };
-		outDistribution = inCellDistributions;
+
+		float  tempf0{0};
+		float4 tempf1to4{ 0 };
+		float2 tempf56{ 0 };
+		float8 tempf7to14{ 0 };
+		float4 tempf15to18{ 0 };
+
+		tempf0 = inCellDistributions.f0;
+
+		tempf1to4.set_value(0, inCellDistributions.f1to4.get_value(1));
+		tempf1to4.set_value(1, inCellDistributions.f1to4.get_value(0));
+		tempf1to4.set_value(2, inCellDistributions.f1to4.get_value(3));
+		tempf1to4.set_value(3, inCellDistributions.f1to4.get_value(2));
+		
+		tempf56.set_value(0, inCellDistributions.f56.get_value(1));
+		tempf56.set_value(1, inCellDistributions.f56.get_value(0));
+
+		tempf7to14.set_value(0, inCellDistributions.f7to14.get_value(1));
+		tempf7to14.set_value(1, inCellDistributions.f7to14.get_value(0));
+		tempf7to14.set_value(2, inCellDistributions.f7to14.get_value(3));
+		tempf7to14.set_value(3, inCellDistributions.f7to14.get_value(2));
+		tempf7to14.set_value(4, inCellDistributions.f7to14.get_value(5));
+		tempf7to14.set_value(5, inCellDistributions.f7to14.get_value(4));
+		tempf7to14.set_value(6, inCellDistributions.f7to14.get_value(7));
+		tempf7to14.set_value(7, inCellDistributions.f7to14.get_value(6));
+
+		tempf15to18.set_value(0, inCellDistributions.f15to18.get_value(1));
+		tempf15to18.set_value(1, inCellDistributions.f15to18.get_value(0));
+		tempf15to18.set_value(2, inCellDistributions.f15to18.get_value(3));
+		tempf15to18.set_value(3, inCellDistributions.f15to18.get_value(2));
+
+		outDistribution = Distributions{ tempf0 , tempf1to4, tempf56, tempf7to14, tempf15to18 };
 	}
 	// fluid
 	else
@@ -266,11 +287,16 @@ struct streamToNeighbours {
 
 		using namespace cl::sycl;
 		// TODO: Streaming near the border could be wrong.
-		if (id.get_value(X) == 0 || id.get_value(X) == (meshDim.get_value(X) - 1)
-			|| id.get_value(Y) == 0 || id.get_value(Y) == (meshDim.get_value(Y) - 1)
-			|| id.get_value(Z) == 0 || id.get_value(Z) == (meshDim.get_value(Z) - 1)) {
-			return;
-		}
+
+		bool isNotLeftBoundary = id.get_value(0) > 0;
+		bool isNotRightBoundary = id.get_value(0) < meshDim.get_value(0) - 1; 
+		
+		// TODO: swap?
+		bool isNotLowerBoundary = id.get_value(1) > 0;
+		bool isNotUpperBoundary = id.get_value(1) < meshDim.get_value(1) - 1;
+
+		bool isNotDepthBottomBoundary = id.get_value(2) > 0;
+		bool isNotDepthTopBoundary = id.get_value(2) < meshDim.get_value(2) - 1;
 
 		for (int i = 0; i < h_dir.size(); i++) {
 			int3 dir3 = id + int3{ h_dir[i].get_value(X), h_dir[i].get_value(Y), h_dir[i].get_value(Z) };
@@ -281,58 +307,76 @@ struct streamToNeighbours {
 				outDistributionBuffers.f0[pos] = currentCellDistributions.f0;
 				break;
 			case 1:
-				outDistributionBuffers.f1to4[pos].set_value(0, currentCellDistributions.f1to4.get_value(0));
+				if (isNotRightBoundary)
+					outDistributionBuffers.f1to4[pos].set_value(0, currentCellDistributions.f1to4.get_value(0));
 				break;
 			case 2:
-				outDistributionBuffers.f1to4[pos].set_value(1, currentCellDistributions.f1to4.get_value(1));
+				if (isNotLeftBoundary)
+					outDistributionBuffers.f1to4[pos].set_value(1, currentCellDistributions.f1to4.get_value(1));
 				break;
 			case 3:
-				outDistributionBuffers.f1to4[pos].set_value(2, currentCellDistributions.f1to4.get_value(2));
+				if (isNotUpperBoundary)
+					outDistributionBuffers.f1to4[pos].set_value(2, currentCellDistributions.f1to4.get_value(2));
 				break;
 			case 4:
-				outDistributionBuffers.f1to4[pos].set_value(3, currentCellDistributions.f1to4.get_value(3));
+				if (isNotLowerBoundary)
+					outDistributionBuffers.f1to4[pos].set_value(3, currentCellDistributions.f1to4.get_value(3));
 				break;
 			case 5:
-				outDistributionBuffers.f56[pos].set_value(0, currentCellDistributions.f56.get_value(0));
+				if (isNotDepthTopBoundary)
+					outDistributionBuffers.f56[pos].set_value(0, currentCellDistributions.f56.get_value(0));
 				break;
 			case 6:
-				outDistributionBuffers.f56[pos].set_value(1, currentCellDistributions.f56.get_value(1));
+				if (isNotDepthBottomBoundary)
+					outDistributionBuffers.f56[pos].set_value(1, currentCellDistributions.f56.get_value(1));
 				break;
 			case 7:
-				outDistributionBuffers.f7to14[pos].set_value(0, currentCellDistributions.f7to14.get_value(0));
+				if (isNotRightBoundary && isNotUpperBoundary)
+					outDistributionBuffers.f7to14[pos].set_value(0, currentCellDistributions.f7to14.get_value(0));
 				break;
 			case 8:
-				outDistributionBuffers.f7to14[pos].set_value(1, currentCellDistributions.f7to14.get_value(1));
+				if (isNotLeftBoundary && isNotLowerBoundary)
+					outDistributionBuffers.f7to14[pos].set_value(1, currentCellDistributions.f7to14.get_value(1));
 				break;
 			case 9:
-				outDistributionBuffers.f7to14[pos].set_value(2, currentCellDistributions.f7to14.get_value(2));
+				if (isNotRightBoundary && isNotLowerBoundary)
+					outDistributionBuffers.f7to14[pos].set_value(2, currentCellDistributions.f7to14.get_value(2));
 				break;
 			case 10:
-				outDistributionBuffers.f7to14[pos].set_value(3, currentCellDistributions.f7to14.get_value(3));
+				if (isNotLeftBoundary && isNotUpperBoundary)
+					outDistributionBuffers.f7to14[pos].set_value(3, currentCellDistributions.f7to14.get_value(3));
 				break;
 			case 11:
-				outDistributionBuffers.f7to14[pos].set_value(4, currentCellDistributions.f7to14.get_value(4));
+				if (isNotRightBoundary && isNotDepthTopBoundary)
+					outDistributionBuffers.f7to14[pos].set_value(4, currentCellDistributions.f7to14.get_value(4));
 				break;
 			case 12:
-				outDistributionBuffers.f7to14[pos].set_value(5, currentCellDistributions.f7to14.get_value(5));
+				if (isNotLeftBoundary && isNotDepthBottomBoundary)
+					outDistributionBuffers.f7to14[pos].set_value(5, currentCellDistributions.f7to14.get_value(5));
 				break;
 			case 13:
-				outDistributionBuffers.f7to14[pos].set_value(6, currentCellDistributions.f7to14.get_value(6));
+				if (isNotRightBoundary && isNotDepthBottomBoundary)
+					outDistributionBuffers.f7to14[pos].set_value(6, currentCellDistributions.f7to14.get_value(6));
 				break;
 			case 14:
-				outDistributionBuffers.f7to14[pos].set_value(7, currentCellDistributions.f7to14.get_value(7));
+				if (isNotLeftBoundary && isNotDepthTopBoundary)
+					outDistributionBuffers.f7to14[pos].set_value(7, currentCellDistributions.f7to14.get_value(7));
 				break;
 			case 15:
-				outDistributionBuffers.f15to18[pos].set_value(0, currentCellDistributions.f15to18.get_value(0));
+				if (isNotUpperBoundary && isNotDepthTopBoundary)
+					outDistributionBuffers.f15to18[pos].set_value(0, currentCellDistributions.f15to18.get_value(0));
 				break;
 			case 16:
-				outDistributionBuffers.f15to18[pos].set_value(1, currentCellDistributions.f15to18.get_value(1));
+				if (isNotLowerBoundary && isNotDepthBottomBoundary)
+					outDistributionBuffers.f15to18[pos].set_value(1, currentCellDistributions.f15to18.get_value(1));
 				break;
 			case 17:
-				outDistributionBuffers.f15to18[pos].set_value(2, currentCellDistributions.f15to18.get_value(2));
+				if (isNotUpperBoundary && isNotDepthBottomBoundary)
+					outDistributionBuffers.f15to18[pos].set_value(2, currentCellDistributions.f15to18.get_value(2));
 				break;
 			case 18:
-				outDistributionBuffers.f15to18[pos].set_value(3, currentCellDistributions.f15to18.get_value(3));
+				if (isNotLowerBoundary && isNotDepthTopBoundary)
+					outDistributionBuffers.f15to18[pos].set_value(3, currentCellDistributions.f15to18.get_value(3));
 				break;
 			}
 		}

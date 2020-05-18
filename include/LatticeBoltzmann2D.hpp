@@ -17,7 +17,7 @@ public:
 	~LatticeBoltzmann2D() = default;
 
 	virtual void mouseDragImpl(QMouseEvent* event_in) override;
-	virtual virtual void resetScene() override;
+	virtual void resetScene() override;
 	virtual void updateSceneImpl() override;
 	virtual void swapDataBuffers() override;
 	void writeOutputsToFile() override;

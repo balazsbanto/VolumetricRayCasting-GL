@@ -125,6 +125,8 @@ void LatticeBoltzmann2D::resetScene() {
 }
 
 void LatticeBoltzmann2D::setInput() {
+
+	return;
 	// Set a test velocity of { 0.4395f, 0.4395f } to (64, 10)
 	using namespace cl::sycl;
 	int x = 64;

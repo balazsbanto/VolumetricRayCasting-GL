@@ -122,16 +122,19 @@ const auto collide = [](const Distributions& cellDistributions, const bool cellT
 
 	//boundary
 	if (type) {
-		// Swap directions by swizzling // Ez igy nem jo, de ez csak a hataroknal jelent problemat
-		/*f1234.x() = f1234.z();
-		f1234.y() = f1234.w();
-		f1234.z() = f1234.x();
-		f1234.w() = f1234.y();
+		 //Swap directions 
+		auto temp1234 = f1234;
+		auto temp5678 = f5678;
 
-		f5678.x() = f5678.z();
-		f5678.y() = f5678.w();
-		f5678.z() = f5678.x();
-		f5678.w() = f5678.y();*/
+		f1234.set_value(0 , temp1234.get_value(2));
+		f1234.set_value(1 , temp1234.get_value(3));
+		f1234.set_value(2 , temp1234.get_value(0));
+		f1234.set_value(3 , temp1234.get_value(1));
+
+		f5678.set_value(0, temp5678.get_value(2));
+		f5678.set_value(1, temp5678.get_value(3));
+		f5678.set_value(2, temp5678.get_value(0));
+		f5678.set_value(3, temp5678.get_value(1));
 
 		rho = 0;
 		u = float2{ 0.f, 0.f };

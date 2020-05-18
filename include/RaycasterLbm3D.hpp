@@ -13,7 +13,7 @@ public:
 	~RaycasterLbm3D() = default;
 
 	virtual void updateSceneImpl() override;
-	virtual virtual void resetScene() override;
+	virtual void resetScene() override;
 	virtual void swapDataBuffers() override;
 	void writeOutputsToFile() override;
 
