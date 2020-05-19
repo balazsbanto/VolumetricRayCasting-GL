@@ -233,9 +233,9 @@ const auto collide = [](const Distributions& inCellDistributions, const bool cel
 	// fluid
 	else
 	{
-		const std::array<cl::sycl::float3, 19> h_dir{ cl::sycl::float3{0, 0, 0}, cl::sycl::float3{1, 0, 0}, cl::sycl::float3{-1, 0, 0}, cl::sycl::float3{0, 1, 0}, cl::sycl::float3{0, -1, 0}, cl::sycl::float3{0, 0, 1}, cl::sycl::float3{0, 0, -1},cl::sycl::float3{1, 1, 0},
-		cl::sycl::float3{-1, -1, 0}, cl::sycl::float3{1, -1, 0}, cl::sycl::float3{-1, 1, 0}, cl::sycl::float3{1, 0, 1}, cl::sycl::float3{-1, 0, -1}, cl::sycl::float3{1, 0, -1}, cl::sycl::float3{-1, 0, 1}, cl::sycl::float3{0, 1, 1}, cl::sycl::float3{0, -1, -1}, cl::sycl::float3{0, 1, -1},
-		cl::sycl::float3{0, -1, 1}, };
+		const std::array<float3, 19> h_dir{ float3{0, 0, 0}, float3{1, 0, 0}, float3{-1, 0, 0}, float3{0, 1, 0}, float3{0, -1, 0}, float3{0, 0, 1}, float3{0, 0, -1},float3{1, 1, 0},
+		float3{-1, -1, 0}, float3{1, -1, 0}, float3{-1, 1, 0}, float3{1, 0, 1}, float3{-1, 0, -1}, float3{1, 0, -1}, float3{-1, 0, 1}, float3{0, 1, 1}, float3{0, -1, -1}, float3{0, 1, -1},
+		float3{0, -1, 1}, };
 
 		rho = sumDistributions(inCellDistributions);
 		u = calculateVelocity(inCellDistributions, h_dir) / rho;
@@ -297,12 +297,12 @@ struct streamToNeighbours {
 		bool isNotDepthBottomBoundary = id.get_value(2) > 0;
 		bool isNotDepthTopBoundary = id.get_value(2) < meshDim.get_value(2) - 1;
 		
-		const std::array<cl::sycl::int3, 19> h_dir{ cl::sycl::int3{0, 0, 0}, cl::sycl::int3{1, 0, 0}, cl::sycl::int3{-1, 0, 0}, cl::sycl::int3{0, 1, 0}, cl::sycl::int3{0, -1, 0}, cl::sycl::int3{0, 0, 1}, cl::sycl::int3{0, 0, -1},cl::sycl::int3{1, 1, 0},
-		cl::sycl::int3{-1, -1, 0}, cl::sycl::int3{1, -1, 0}, cl::sycl::int3{-1, 1, 0}, cl::sycl::int3{1, 0, 1}, cl::sycl::int3{-1, 0, -1}, cl::sycl::int3{1, 0, -1}, cl::sycl::int3{-1, 0, 1}, cl::sycl::int3{0, 1, 1}, cl::sycl::int3{0, -1, -1}, cl::sycl::int3{0, 1, -1},
-		cl::sycl::int3{0, -1, 1}, };
+		const std::array<int3, 19> h_dir{ int3{0, 0, 0}, int3{1, 0, 0}, int3{-1, 0, 0}, int3{0, 1, 0}, int3{0, -1, 0}, int3{0, 0, 1}, int3{0, 0, -1},int3{1, 1, 0},
+										  int3{-1, -1, 0}, int3{1, -1, 0}, int3{-1, 1, 0}, int3{1, 0, 1}, int3{-1, 0, -1}, int3{1, 0, -1}, int3{-1, 0, 1}, int3{0, 1, 1},
+										  int3{0, -1, -1}, int3{0, 1, -1},  int3{0, -1, 1}, };
 
 		for (int i = 0; i < h_dir.size(); i++) {
-			int3 dir3 = id + int3{ h_dir[i].get_value(X), h_dir[i].get_value(Y), h_dir[i].get_value(Z) };
+			int3 dir3 = id + h_dir[i];
 			int pos = getIndex(dir3, meshDim);
 			switch (i)
 			{
@@ -715,9 +715,9 @@ void RaycasterLbm3D::setInput() {
 	float3 newVel = velocity_out[pos] + float3{ 1.f, 1.f, 1.f };
 
 	// Calculate new distribution based on input spee
-	const std::array<cl::sycl::float3, 19> h_dir{ cl::sycl::float3{0, 0, 0}, cl::sycl::float3{1, 0, 0}, cl::sycl::float3{-1, 0, 0}, cl::sycl::float3{0, 1, 0}, cl::sycl::float3{0, -1, 0}, cl::sycl::float3{0, 0, 1}, cl::sycl::float3{0, 0, -1},cl::sycl::float3{1, 1, 0},
-		cl::sycl::float3{-1, -1, 0}, cl::sycl::float3{1, -1, 0}, cl::sycl::float3{-1, 1, 0}, cl::sycl::float3{1, 0, 1}, cl::sycl::float3{-1, 0, -1}, cl::sycl::float3{1, 0, -1}, cl::sycl::float3{-1, 0, 1}, cl::sycl::float3{0, 1, 1}, cl::sycl::float3{0, -1, -1}, cl::sycl::float3{0, 1, -1},
-		cl::sycl::float3{0, -1, 1}, };
+	const std::array<float3, 19> h_dir{ float3{0, 0, 0}, float3{1, 0, 0}, float3{-1, 0, 0}, float3{0, 1, 0}, float3{0, -1, 0}, float3{0, 0, 1}, float3{0, 0, -1},float3{1, 1, 0},
+										float3{-1, -1, 0}, float3{1, -1, 0}, float3{-1, 1, 0}, float3{1, 0, 1}, float3{-1, 0, -1}, float3{1, 0, -1}, float3{-1, 0, 1}, float3{0, 1, 1}, 
+										float3{0, -1, -1}, float3{0, 1, -1}, float3{0, -1, 1}, };
 
 	if0[pos] = computefEq(rho, h_weight[0], h_dir[0], newVel);
 
