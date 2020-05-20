@@ -3,7 +3,7 @@
 #include <Common.hpp>
 
 //#define RUN_ON_CPU
-#define WRITE_OUTPUT_TO_FILE
+//#define WRITE_OUTPUT_TO_FILE
 
 namespace kernels { struct Raycaster_LBM3D; }
 using namespace cl::sycl;
@@ -72,17 +72,17 @@ const auto colorFunc = [](cl::sycl::float3 inVelocity, bool isBoundary) {
 
 	// creat a color scale (use 4th value now for magnitude, later set the alpha channel here)
 	float4 color1{ 0, 0, 0, 0.0 };
-	float4 color2{ 0, 0, 1, 0.3 };
-	float4 color3{ 0, 1, 1, 0.9 };
-	float4 color4{ 0, 1, 0, 2.7 };
-	float4 color5{ 1, 1, 0, 3.6 };
-	float4 color6{ 1, 0, 0, 4.5 };
+	float4 color2{ 0, 0, 1, 0.2 };
+	float4 color3{ 0, 1, 1, 0.4 };
+	float4 color4{ 0, 1, 0, 0.8 };
+	float4 color5{ 1, 1, 0, 1.6 };
+	float4 color6{ 1, 0, 0, 3.2 };
 
 	if (isBoundary) {
 		color = { 0.f, 0.f, 0.f, 1.f };
 	}
 	else {
-		auto velocityMangitude = cl::sycl::length(inVelocity);
+		auto velocityMangitude = cl::sycl::length(inVelocity) * 20;
 
 		int i = 0;
 		float w;
