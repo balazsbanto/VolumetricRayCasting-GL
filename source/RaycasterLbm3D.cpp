@@ -72,17 +72,17 @@ const auto colorFunc = [](cl::sycl::float3 inVelocity, bool isBoundary) {
 
 	// creat a color scale (use 4th value now for magnitude, later set the alpha channel here)
 	float4 color1{ 0, 0, 0, 0.0 };
-	float4 color2{ 0, 0, 1, 0.2 };
-	float4 color3{ 0, 1, 1, 0.4 };
-	float4 color4{ 0, 1, 0, 0.8 };
-	float4 color5{ 1, 1, 0, 1.6 };
-	float4 color6{ 1, 0, 0, 3.2 };
+	float4 color2{ 0, 0, 1, 0.3 };
+	float4 color3{ 0, 1, 1, 0.9 };
+	float4 color4{ 0, 1, 0, 2.7 };
+	float4 color5{ 1, 1, 0, 3.6 };
+	float4 color6{ 1, 0, 0, 4.5 };
 
 	if (isBoundary) {
 		color = { 0.f, 0.f, 0.f, 1.f };
 	}
 	else {
-		auto velocityMangitude = cl::sycl::length(inVelocity) * 20;
+		auto velocityMangitude = cl::sycl::length(inVelocity);
 
 		int i = 0;
 		float w;
@@ -146,7 +146,7 @@ constexpr float weight_0 = 1.f / 3.f;
 constexpr float weight_1to6 = 1.f / 18.f;
 constexpr float weight_7to18 = 1.f / 36.f;
 
-constexpr float rho = 10.f;
+constexpr float rho = 20.f;
 
 constexpr float f0_EQ = rho * weight_0;
 constexpr float f1to6_EQ = rho * weight_1to6;
@@ -469,14 +469,6 @@ struct raymarch {
 	}
 };
 
-RaycasterLbm3D::RaycasterLbm3D(std::size_t plat,
-	std::size_t dev,
-	cl_bitfield type,
-	QWindow* parent)
-	: Raycaster(plat, dev, type, parent)
-{
-}
-
 #ifdef RUN_ON_CPU
 void RaycasterLbm3D::updateSceneImpl() {
 	using namespace cl::sycl;
@@ -621,13 +613,23 @@ void RaycasterLbm3D::updateSceneImpl() {
 }
 #endif
 
+RaycasterLbm3D::RaycasterLbm3D(std::size_t plat,
+	std::size_t dev,
+	cl_bitfield type,
+	QWindow* parent)
+	: Raycaster(plat, dev, type, parent)
+{
+
+}
 
 void RaycasterLbm3D::resetScene() {
 	
 	using namespace cl::sycl;
 	meshDim = int3{ 10, 10, 10 };
 	//meshDim = int3{ screenSize.width, screenSize.width, screenSize.width };
+	stepSize = (extent[0][1] - extent[0][0])  /  (meshDim.get_value(0) * cl::sycl::sqrt(3.f));
 	size_t meshSize = meshDim.get_value(X) * meshDim.get_value(Y) * meshDim.get_value(Z);
+
 	// Initial velocity is 0
 	type_host = new bool[meshSize];
 	f0_host[Buffer::Front] = std::vector<float>(meshSize, f0_EQ);
@@ -690,11 +692,17 @@ void RaycasterLbm3D::resetScene() {
 }
 
 void RaycasterLbm3D::setInput() {
+	//return;
 
 	using namespace cl::sycl;
+
+	//int x = meshDim.get_value(X) / 2;
+	//int y = meshDim.get_value(Y) / 2;
+	//int z = meshDim.get_value(Z) / 2;
+
 	int x = meshDim.get_value(X) / 2;
-	int y = meshDim.get_value(Y) - 1 - meshDim.get_value(Y) / 2;
-	int z = meshDim.get_value(Z) / 2;
+	int y = meshDim.get_value(Y) / 2;
+	int z = 0;
 
 	int pos = getIndex(int3{ x, y, z }, meshDim);
 
@@ -712,7 +720,7 @@ void RaycasterLbm3D::setInput() {
 	// Increase the speed by input speed
 	//velocity_out[pos] += dragVelocity;
 
-	float3 newVel = velocity_out[pos] + float3{ 1.f, 1.f, 1.f };
+	float3 newVel = velocity_out[pos] + float3{ 1.f, 0.f, 0.f };
 
 	// Calculate new distribution based on input spee
 	const std::array<float3, 19> h_dir{ float3{0, 0, 0}, float3{1, 0, 0}, float3{-1, 0, 0}, float3{0, 1, 0}, float3{0, -1, 0}, float3{0, 0, 1}, float3{0, 0, -1},float3{1, 1, 0},

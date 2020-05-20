@@ -126,11 +126,10 @@ void LatticeBoltzmann2D::resetScene() {
 
 void LatticeBoltzmann2D::setInput() {
 
-	return;
 	// Set a test velocity of { 0.4395f, 0.4395f } to (64, 10)
 	using namespace cl::sycl;
-	int x = 64;
-	int y = height() - 1 - 10;
+	int x = width() / 2;
+	int y = height() / 2;
 	int pos = x + width() * y;
 
 	auto if0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
@@ -147,7 +146,7 @@ void LatticeBoltzmann2D::setInput() {
 	// Increase the speed by input speed
 	//velocity_out[pos] += dragVelocity;
 
-	float2 newVel = velocity_out[pos] + float2{ 0.4395f, 0.4395f };;
+	float2 newVel = velocity_out[pos] + float2{ 1.f, 1.f };;
 
 	// Calculate new distribution based on input speed
 
