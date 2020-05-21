@@ -24,12 +24,12 @@ public:
 private:
 	cl::sycl::int3 meshDim = { 0, 0, 0 };
 	//  Distribution Buffers
-	std::array < std::unique_ptr<cl::sycl::buffer<float, 1> >, 2 > f0_buffers;
-	std::array < std::unique_ptr<cl::sycl::buffer<cl::sycl::float4, 1>>, 2 > f1to4_buffers;
-	std::array < std::unique_ptr<cl::sycl::buffer<cl::sycl::float2, 1>>, 2 > f56_buffers;
-	std::array < std::unique_ptr<cl::sycl::buffer<cl::sycl::float8, 1>>, 2 > f7to14_buffers;
-	std::array < std::unique_ptr<cl::sycl::buffer<cl::sycl::float4, 1>>, 2 > f15to18_buffers;
-	std::unique_ptr < cl::sycl::buffer<cl::sycl::float3, 1>> velocity_buffer;
+	std::array < cl::sycl::buffer<float, 1>, 2 > f0_buffers;
+	std::array < cl::sycl::buffer<cl::sycl::float4, 1>, 2 > f1to4_buffers;
+	std::array < cl::sycl::buffer<cl::sycl::float2, 1>, 2 > f56_buffers;
+	std::array < cl::sycl::buffer<cl::sycl::float8, 1>, 2 > f7to14_buffers;
+	std::array < cl::sycl::buffer<cl::sycl::float4, 1>, 2 > f15to18_buffers;
+	cl::sycl::buffer<cl::sycl::float3, 1> velocity_buffer;
 	cl::sycl::buffer<bool, 1>  type_buffer; // 0 - fluid, 1 - boundary
 
 	// Host vectors

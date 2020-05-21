@@ -474,22 +474,22 @@ void RaycasterLbm3D::updateSceneImpl() {
 	using namespace cl::sycl;
 
 	// Input buffers
-	auto if0 = f0_buffers[Buffer::Front]->get_access<access::mode::read>();
-	auto if1to4 = f1to4_buffers[Buffer::Front]->get_access<access::mode::read>();
-	auto if56 = f56_buffers[Buffer::Front]->get_access<access::mode::read>();
-	auto if7to14 = f7to14_buffers[Buffer::Front]->get_access<access::mode::read>();
-	auto if15to18 = f15to18_buffers[Buffer::Front]->get_access<access::mode::read>();
+	auto if0 = f0_buffers[Buffer::Front].get_access<access::mode::read>();
+	auto if1to4 = f1to4_buffers[Buffer::Front].get_access<access::mode::read>();
+	auto if56 = f56_buffers[Buffer::Front].get_access<access::mode::read>();
+	auto if7to14 = f7to14_buffers[Buffer::Front].get_access<access::mode::read>();
+	auto if15to18 = f15to18_buffers[Buffer::Front].get_access<access::mode::read>();
 
 	auto cellType = type_buffer.get_access<access::mode::read>();
 
 	// Output buffers
-	auto of0 = f0_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
-	auto of1to4 = f1to4_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
-	auto of56 = f56_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
-	auto of7to14 = f7to14_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
-	auto of15to18 = f15to18_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
+	auto of0 = f0_buffers[Buffer::Back].get_access<access::mode::discard_write>();
+	auto of1to4 = f1to4_buffers[Buffer::Back].get_access<access::mode::discard_write>();
+	auto of56 = f56_buffers[Buffer::Back].get_access<access::mode::discard_write>();
+	auto of7to14 = f7to14_buffers[Buffer::Back].get_access<access::mode::discard_write>();
+	auto of15to18 = f15to18_buffers[Buffer::Back].get_access<access::mode::discard_write>();
 
-	auto velocity_out = velocity_buffer->get_access<access::mode::discard_write>();
+	auto velocity_out = velocity_buffer.get_access<access::mode::discard_write>();
 
 
 	auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::discard_write>();
@@ -548,22 +548,22 @@ void RaycasterLbm3D::updateSceneImpl() {
 	compute_queue.submit([&](cl::sycl::handler& cgh)
 	{
 		// Input buffers
-		auto if0 = f0_buffers[Buffer::Front]->get_access<access::mode::read>(cgh);
-		auto if1to4 = f1to4_buffers[Buffer::Front]->get_access<access::mode::read>(cgh);
-		auto if56 = f56_buffers[Buffer::Front]->get_access<access::mode::read>(cgh);
-		auto if7to14 = f7to14_buffers[Buffer::Front]->get_access<access::mode::read>(cgh);
-		auto if15to18 = f15to18_buffers[Buffer::Front]->get_access<access::mode::read>(cgh);
+		auto if0 = f0_buffers[Buffer::Front].get_access<access::mode::read>(cgh);
+		auto if1to4 = f1to4_buffers[Buffer::Front].get_access<access::mode::read>(cgh);
+		auto if56 = f56_buffers[Buffer::Front].get_access<access::mode::read>(cgh);
+		auto if7to14 = f7to14_buffers[Buffer::Front].get_access<access::mode::read>(cgh);
+		auto if15to18 = f15to18_buffers[Buffer::Front].get_access<access::mode::read>(cgh);
 
 		auto cellType = type_buffer.get_access<access::mode::read>(cgh);
 
 		// Output buffers
-		auto of0 = f0_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
-		auto of1to4 = f1to4_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
-		auto of56 = f56_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
-		auto of7to14 = f7to14_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
-		auto of15to18 = f15to18_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
+		auto of0 = f0_buffers[Buffer::Back].get_access<access::mode::discard_write>(cgh);
+		auto of1to4 = f1to4_buffers[Buffer::Back].get_access<access::mode::discard_write>(cgh);
+		auto of56 = f56_buffers[Buffer::Back].get_access<access::mode::discard_write>(cgh);
+		auto of7to14 = f7to14_buffers[Buffer::Back].get_access<access::mode::discard_write>(cgh);
+		auto of15to18 = f15to18_buffers[Buffer::Back].get_access<access::mode::discard_write>(cgh);
 
-		auto velocity_out =	velocity_buffer->get_access<access::mode::discard_write>(cgh);
+		auto velocity_out =	velocity_buffer.get_access<access::mode::discard_write>(cgh);
 		
 
 		auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::discard_write>(cgh);
@@ -645,21 +645,21 @@ void RaycasterLbm3D::resetScene() {
 	f56_host[Buffer::Back] = f56_host[Buffer::Front];
 	f15to18_host[Buffer::Back] = f15to18_host[Buffer::Front];
 
-	f0_buffers[Buffer::Front] = std::make_unique<buffer<float, 1>>(f0_host[Buffer::Front].data(), range<1> {meshSize});
-	f1to4_buffers[Buffer::Front] = std::make_unique<buffer<float4, 1>>(f1to4_host[Buffer::Front].data(), range<1> {meshSize});
-	f56_buffers[Buffer::Front] = std::make_unique<buffer<float2, 1>>(f56_host[Buffer::Front].data(), range<1> { meshSize});
-	f7to14_buffers[Buffer::Front] = std::make_unique<buffer<float8, 1>>(f7to14_host[Buffer::Front].data(), range<1> { meshSize});
-	f15to18_buffers[Buffer::Front] = std::make_unique<buffer<float4, 1>>(f15to18_host[Buffer::Front].data(), range<1> { meshSize});
+	f0_buffers[Buffer::Front] = buffer<float, 1>(f0_host[Buffer::Front].data(), range<1> {meshSize});
+	f1to4_buffers[Buffer::Front] = buffer<float4, 1>(f1to4_host[Buffer::Front].data(), range<1> {meshSize});
+	f56_buffers[Buffer::Front] = buffer<float2, 1>(f56_host[Buffer::Front].data(), range<1> { meshSize});
+	f7to14_buffers[Buffer::Front] = buffer<float8, 1>(f7to14_host[Buffer::Front].data(), range<1> { meshSize});
+	f15to18_buffers[Buffer::Front] = buffer<float4, 1>(f15to18_host[Buffer::Front].data(), range<1> { meshSize});
 
 
-	f0_buffers[Buffer::Back] = std::make_unique<buffer<float, 1>>(f0_host[Buffer::Back].data(), range<1> {meshSize});
-	f1to4_buffers[Buffer::Back] = std::make_unique<buffer<float4, 1>>(f1to4_host[Buffer::Back].data(), range<1> {meshSize});
-	f56_buffers[Buffer::Back] = std::make_unique<buffer<float2, 1>>(f56_host[Buffer::Back].data(), range<1> { meshSize});
-	f7to14_buffers[Buffer::Back] = std::make_unique<buffer<float8, 1>>(f7to14_host[Buffer::Back].data(), range<1> { meshSize});
-	f15to18_buffers[Buffer::Back] = std::make_unique<buffer<float4, 1>>(f15to18_host[Buffer::Back].data(), range<1> { meshSize});
+	f0_buffers[Buffer::Back] = buffer<float, 1>(f0_host[Buffer::Back].data(), range<1> {meshSize});
+	f1to4_buffers[Buffer::Back] = buffer<float4, 1>(f1to4_host[Buffer::Back].data(), range<1> {meshSize});
+	f56_buffers[Buffer::Back] = buffer<float2, 1>(f56_host[Buffer::Back].data(), range<1> { meshSize});
+	f7to14_buffers[Buffer::Back] = buffer<float8, 1>(f7to14_host[Buffer::Back].data(), range<1> { meshSize});
+	f15to18_buffers[Buffer::Back] = buffer<float4, 1>(f15to18_host[Buffer::Back].data(), range<1> { meshSize});
 
 	velocity_host = std::vector<float3>(meshSize, float3{ 0.f, 0.f, 0.f });
-	velocity_buffer = std::make_unique< buffer<float3, 1>>(velocity_host.data(), range<1> { meshSize});
+	velocity_buffer =  buffer<float3, 1>(velocity_host.data(), range<1> { meshSize});
 
 
 
@@ -707,13 +707,13 @@ void RaycasterLbm3D::setInput() {
 
 	int pos = getIndex(int3{ x, y, z }, meshDim);
 
-	auto if0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
-	auto if1to4 = f1to4_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
-	auto if56 = f56_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
-	auto if7to14 = f7to14_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
-	auto if15to18 = f15to18_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
+	auto if0 = f0_buffers[Buffer::Front].get_access<cl::sycl::access::mode::read_write>();
+	auto if1to4 = f1to4_buffers[Buffer::Front].get_access<cl::sycl::access::mode::read_write>();
+	auto if56 = f56_buffers[Buffer::Front].get_access<cl::sycl::access::mode::read_write>();
+	auto if7to14 = f7to14_buffers[Buffer::Front].get_access<cl::sycl::access::mode::read_write>();
+	auto if15to18 = f15to18_buffers[Buffer::Front].get_access<cl::sycl::access::mode::read_write>();
 
-	auto velocity_out = velocity_buffer->get_access<access::mode::read>();
+	auto velocity_out = velocity_buffer.get_access<access::mode::read>();
 
 	// Calculate density from input distribution
 	float rho = sumDistributions(Distributions{ if0[pos], if1to4[pos], if56[pos], if7to14[pos], if15to18[pos]});
@@ -769,13 +769,13 @@ void RaycasterLbm3D::writeOutputsToFile() {
 
 	static int fileIndex = 0;
 
-	auto f0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
-	auto f1to4 = f1to4_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
-	auto f56 = f56_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
-	auto f7to14 = f7to14_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
-	auto f15to18 = f15to18_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
+	auto f0 = f0_buffers[Buffer::Front].get_access<cl::sycl::access::mode::read>();
+	auto f1to4 = f1to4_buffers[Buffer::Front].get_access<cl::sycl::access::mode::read>();
+	auto f56 = f56_buffers[Buffer::Front].get_access<cl::sycl::access::mode::read>();
+	auto f7to14 = f7to14_buffers[Buffer::Front].get_access<cl::sycl::access::mode::read>();
+	auto f15to18 = f15to18_buffers[Buffer::Front].get_access<cl::sycl::access::mode::read>();
 
-	auto velocity = velocity_buffer->get_access<cl::sycl::access::mode::read>();
+	auto velocity = velocity_buffer.get_access<cl::sycl::access::mode::read>();
 
 	std::ofstream f0_file("of0_" + std::to_string(fileIndex) + ".txt");
 	std::ofstream f1to4_file("of1to4_" + std::to_string(fileIndex) + ".txt");
