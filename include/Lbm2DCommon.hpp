@@ -1,5 +1,5 @@
 #pragma once
-
+#include <CL/sycl.hpp>
 //#define RUN_ON_CPU
 //#define WRITE_OUTPUT_TO_FILE
 namespace {
@@ -211,10 +211,10 @@ void operator()(const cl::sycl::int2 id, const int currentPos, const ScreenSize 
 	int8 nPos = nX + width8 * nY;
 
 
-	int isNotRightBoundary = id.get_value(0) < int(screenSize.width - 1); // Not on Right boundary
-	int isNotUpperBoundary = id.get_value(1) > int(0);                      // Not on Upper boundary
-	int isNotLeftBoundary = id.get_value(0) > int(0);                      // Not on Left boundary
-	int isNotLowerBoundary = id.get_value(1) < int(screenSize.height - 1); // Not on lower boundary
+	bool isNotRightBoundary = (id.get_value(0) < int(screenSize.width - 1)); // Not on Right boundary
+	bool isNotUpperBoundary = (id.get_value(1) > int(0));                      // Not on Upper boundary
+	bool isNotLeftBoundary = (id.get_value(0) > int(0));                      // Not on Left boundary
+	bool isNotLowerBoundary = (id.get_value(1) < int(screenSize.height - 1)); // Not on lower boundary
 
 	outDistributionBuffers.f0[currentPos] = currentCellDistributions.f0;
 

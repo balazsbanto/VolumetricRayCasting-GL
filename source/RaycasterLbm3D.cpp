@@ -625,7 +625,8 @@ RaycasterLbm3D::RaycasterLbm3D(std::size_t plat,
 void RaycasterLbm3D::resetScene() {
 	
 	using namespace cl::sycl;
-	meshDim = int3{ 10, 10, 10 };
+	int dim = 12;
+	meshDim = int3{ dim, dim, dim };
 	//meshDim = int3{ screenSize.width, screenSize.width, screenSize.width };
 	stepSize = (extent[0][1] - extent[0][0])  /  (meshDim.get_value(0) * cl::sycl::sqrt(3.f));
 	size_t meshSize = meshDim.get_value(X) * meshDim.get_value(Y) * meshDim.get_value(Z);

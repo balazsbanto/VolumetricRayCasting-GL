@@ -55,4 +55,8 @@ private:
 	// Weights
 	std::vector<float> w{ 4.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0 };
 	cl::sycl::buffer<float, 1> h_weigt_buffer;
+
+	// DEBUG
+	std::vector<cl::sycl::int2> idVec;
+	cl::sycl::buffer<cl::sycl::int2, 1>  idBuffer;
 };

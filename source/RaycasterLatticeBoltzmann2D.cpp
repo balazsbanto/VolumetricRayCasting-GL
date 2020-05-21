@@ -293,8 +293,8 @@ void RaycasterLatticeBoltzmann2D::resetScene() {
 void RaycasterLatticeBoltzmann2D::setInput() {
 	// Set a test velocity of { 0.4395f, 0.4395f } to (64, 10)
 	using namespace cl::sycl;
-	int x = screenSize.width / 2;
-	int y = screenSize.height - 1 - screenSize.height / 2;
+	int x = width() / 2;
+	int y = height() / 2;
 	int pos = x + screenSize.width * y;
 
 	auto if0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();

@@ -69,6 +69,8 @@ void LatticeBoltzmann2D::resetScene() {
 
 	using namespace cl::sycl;
 
+	idVec = std::vector<int2>(getNrOfPixels(), int2{ -1, -1 });
+	idBuffer = buffer<int2, 1>(idVec.data(), range<1> { getNrOfPixels()});
 	// Initial velocity is 0
 	type_host = new bool[getNrOfPixels()];
 	f0_host[Buffer::Front] = std::vector<float>(getNrOfPixels(), F0_EQ);
@@ -146,7 +148,7 @@ void LatticeBoltzmann2D::setInput() {
 	// Increase the speed by input speed
 	//velocity_out[pos] += dragVelocity;
 
-	float2 newVel = velocity_out[pos] + float2{ 1.f, 1.f };;
+	float2 newVel = velocity_out[pos] + float2{ 1.f, 1.f };
 
 	// Calculate new distribution based on input speed
 
@@ -205,6 +207,15 @@ void LatticeBoltzmann2D::writeOutputsToFile() {
 	velocity_file.close();
 
 	fileIndex++;
+
+	auto pd = idBuffer.get_access<cl::sycl::access::mode::read>();
+
+	std::ofstream posID("posId.txt");
+	for (int i = 0; i < pd.get_count(); i++) {
+		posID << pd[i].get_value(0) << " " << pd[i].get_value(1) << "\n";
+	}
+	posID.close();
+
 }
 #ifdef RUN_ON_CPU
 void LatticeBoltzmann2D::updateSceneImpl() {
@@ -242,12 +253,13 @@ void LatticeBoltzmann2D::updateSceneImpl() {
 				qDebug() << finalPixelColor.get_value(0) << " " << finalPixelColor.get_value(1) << " " << finalPixelColor.get_value(2) << finalPixelColor.get_value(3) << "\n";*/
 
 		}
-	}
+	}	
 }
 #else
 void LatticeBoltzmann2D::updateSceneImpl() {
 
 	using namespace cl::sycl;
+
 	compute_queue.submit([&](cl::sycl::handler& cgh)
 	{
 		// Input buffers
@@ -264,6 +276,8 @@ void LatticeBoltzmann2D::updateSceneImpl() {
 
 		auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::discard_write>(cgh);
 
+		auto idAcc = idBuffer.get_access<access::mode::discard_write>(cgh);
+
 		cgh.parallel_for<kernels::Lbm>(range<2>{ new_lattice.get_range() },
 			[=, screenSize = screenSize](const item<2> i)
 		{
@@ -271,6 +285,7 @@ void LatticeBoltzmann2D::updateSceneImpl() {
 			int2 id = (int2)i.get_id();
 
 			int pos = id.get_value(0) + screenSize.width * id.get_value(1);
+			idAcc[pos] = id;
 
 			auto cellAfterCollision = collide(Distributions{ if0[pos], if1234[pos], if5678[pos] }, type[pos]);
 
