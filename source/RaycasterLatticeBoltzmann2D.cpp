@@ -105,16 +105,16 @@ RaycasterLatticeBoltzmann2D::RaycasterLatticeBoltzmann2D(std::size_t plat,
 #ifdef RUN_ON_CPU
 void RaycasterLatticeBoltzmann2D::updateSceneImpl() {
 
-	auto if0 = f0_buffers[Buffer::Front]->get_access<access::mode::read>();
-	auto if1234 = f1234_buffers[Buffer::Front]->get_access<access::mode::read>();
-	auto if5678 = f5678_buffers[Buffer::Front]->get_access<access::mode::read>();
+	auto if0 = f0_buffers[Buffer::Front].get_access<access::mode::read>();
+	auto if1234 = f1234_buffers[Buffer::Front].get_access<access::mode::read>();
+	auto if5678 = f5678_buffers[Buffer::Front].get_access<access::mode::read>();
 	auto type = type_buffer.get_access<access::mode::read>();
 
 	// Output
-	auto of0 = f0_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
-	auto of1234 = f1234_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
-	auto of5678 = f5678_buffers[Buffer::Back]->get_access<access::mode::discard_write>();
-	auto velocity_out = velocity_buffer->get_access<access::mode::discard_write>();
+	auto of0 = f0_buffers[Buffer::Back].get_access<access::mode::discard_write>();
+	auto of1234 = f1234_buffers[Buffer::Back].get_access<access::mode::discard_write>();
+	auto of5678 = f5678_buffers[Buffer::Back].get_access<access::mode::discard_write>();
+	auto velocity_out = velocity_buffer.get_access<access::mode::discard_write>();
 
 
 	int screen_width = width();
@@ -177,16 +177,16 @@ void RaycasterLatticeBoltzmann2D::updateSceneImpl() {
 	compute_queue.submit([&](cl::sycl::handler& cgh)
 	{
 		// Input buffers
-		auto if0 = f0_buffers[Buffer::Front]->get_access<access::mode::read>(cgh);
-		auto if1234 = f1234_buffers[Buffer::Front]->get_access<access::mode::read>(cgh);
-		auto if5678 = f5678_buffers[Buffer::Front]->get_access<access::mode::read>(cgh);
+		auto if0 = f0_buffers[Buffer::Front].get_access<access::mode::read>(cgh);
+		auto if1234 = f1234_buffers[Buffer::Front].get_access<access::mode::read>(cgh);
+		auto if5678 = f5678_buffers[Buffer::Front].get_access<access::mode::read>(cgh);
 		auto type = type_buffer.get_access<access::mode::read>(cgh);
 
 		// Output buffers
-		auto velocity_out = velocity_buffer->get_access<access::mode::discard_write>(cgh);
-		auto of0 = f0_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
-		auto of1234 = f1234_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
-		auto of5678 = f5678_buffers[Buffer::Back]->get_access<access::mode::discard_write>(cgh);
+		auto velocity_out = velocity_buffer.get_access<access::mode::discard_write>(cgh);
+		auto of0 = f0_buffers[Buffer::Back].get_access<access::mode::discard_write>(cgh);
+		auto of1234 = f1234_buffers[Buffer::Back].get_access<access::mode::discard_write>(cgh);
+		auto of5678 = f5678_buffers[Buffer::Back].get_access<access::mode::discard_write>(cgh);
 
 		auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::discard_write>(cgh);
 
@@ -250,17 +250,17 @@ void RaycasterLatticeBoltzmann2D::resetScene() {
 	f1234_host[Buffer::Back] = f1234_host[Buffer::Front];
 	f5678_host[Buffer::Back] = f5678_host[Buffer::Front];
 
-	f0_buffers[Buffer::Front] = std::make_unique<buffer<float, 1>>(f0_host[Buffer::Front].data(), range<1> {getNrOfPixels()});
-	f1234_buffers[Buffer::Front] = std::make_unique<buffer<float4, 1>>(f1234_host[Buffer::Front].data(), range<1> {getNrOfPixels()});
-	f5678_buffers[Buffer::Front] = std::make_unique<buffer<float4, 1>>(f5678_host[Buffer::Front].data(), range<1> { getNrOfPixels()});
+	f0_buffers[Buffer::Front] = buffer<float, 1>(f0_host[Buffer::Front].data(), range<1> {getNrOfPixels()});
+	f1234_buffers[Buffer::Front] = buffer<float4, 1>(f1234_host[Buffer::Front].data(), range<1> {getNrOfPixels()});
+	f5678_buffers[Buffer::Front] = buffer<float4, 1>(f5678_host[Buffer::Front].data(), range<1> { getNrOfPixels()});
 
 
-	f0_buffers[Buffer::Back] = std::make_unique<buffer<float, 1>>(f0_host[Buffer::Back].data(), range<1> {getNrOfPixels()});
-	f1234_buffers[Buffer::Back] = std::make_unique<buffer<float4, 1>>(f1234_host[Buffer::Back].data(), range<1> {getNrOfPixels()});
-	f5678_buffers[Buffer::Back] = std::make_unique<buffer<float4, 1>>(f5678_host[Buffer::Back].data(), range<1> { getNrOfPixels()});
+	f0_buffers[Buffer::Back] = buffer<float, 1>(f0_host[Buffer::Back].data(), range<1> {getNrOfPixels()});
+	f1234_buffers[Buffer::Back] = buffer<float4, 1>(f1234_host[Buffer::Back].data(), range<1> {getNrOfPixels()});
+	f5678_buffers[Buffer::Back] = buffer<float4, 1>(f5678_host[Buffer::Back].data(), range<1> { getNrOfPixels()});
 
 	velocity_host = std::vector<float2>(getNrOfPixels(), float2{ 0.f, 0.f });
-	velocity_buffer = std::make_unique< buffer<float2, 1>>(velocity_host.data(), range<1> { getNrOfPixels()});
+	velocity_buffer =  buffer<float2, 1>(velocity_host.data(), range<1> { getNrOfPixels()});
 
 
 	for (int y = 0; y < height(); y++) {
@@ -297,11 +297,11 @@ void RaycasterLatticeBoltzmann2D::setInput() {
 	int y = height() / 2;
 	int pos = x + screenSize.width * y;
 
-	auto if0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
-	auto if1234 = f1234_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
-	auto if5678 = f5678_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read_write>();
+	auto if0 = f0_buffers[Buffer::Front].get_access<cl::sycl::access::mode::read_write>();
+	auto if1234 = f1234_buffers[Buffer::Front].get_access<cl::sycl::access::mode::read_write>();
+	auto if5678 = f5678_buffers[Buffer::Front].get_access<cl::sycl::access::mode::read_write>();
 
-	auto velocity_out = velocity_buffer->get_access<access::mode::read>();
+	auto velocity_out = velocity_buffer.get_access<access::mode::read>();
 
 	// Calculate density from input distribution
 	float rho = if0[pos]
@@ -341,10 +341,10 @@ void RaycasterLatticeBoltzmann2D::writeOutputsToFile() {
 
 	static int fileIndex = 0;
 
-	auto f0 = f0_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
-	auto f1234 = f1234_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
-	auto f5678 = f5678_buffers[Buffer::Front]->get_access<cl::sycl::access::mode::read>();
-	auto velocity = velocity_buffer->get_access<cl::sycl::access::mode::read>();
+	auto f0 = f0_buffers[Buffer::Front].get_access<cl::sycl::access::mode::read>();
+	auto f1234 = f1234_buffers[Buffer::Front].get_access<cl::sycl::access::mode::read>();
+	auto f5678 = f5678_buffers[Buffer::Front].get_access<cl::sycl::access::mode::read>();
+	auto velocity = velocity_buffer.get_access<cl::sycl::access::mode::read>();
 
 	std::ofstream of0_file("of0_" + std::to_string(fileIndex) + ".txt");
 	std::ofstream of1234_file("of1234_" + std::to_string(fileIndex) + ".txt");

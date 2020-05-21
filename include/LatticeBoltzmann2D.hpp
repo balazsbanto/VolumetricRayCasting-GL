@@ -28,9 +28,9 @@ private:
 	// LBM D2Q9
 
 	//  Distribution Buffers
-	std::array < std::unique_ptr<cl::sycl::buffer<float, 1> >, 2 > f0_buffers;
-	std::array < std::unique_ptr<cl::sycl::buffer<cl::sycl::float4, 1>>, 2 > f1234_buffers;
-	std::array < std::unique_ptr<cl::sycl::buffer<cl::sycl::float4, 1>>, 2 > f5678_buffers;
+	std::array <cl::sycl::buffer<float, 1> , 2 > f0_buffers;
+	std::array <cl::sycl::buffer<cl::sycl::float4, 1>, 2 > f1234_buffers;
+	std::array <cl::sycl::buffer<cl::sycl::float4, 1>, 2 > f5678_buffers;
 
 	// Host vectors
 	std::array < std::vector<float>, 2 > f0_host;
@@ -40,7 +40,7 @@ private:
 	bool* type_host;
 
 	// Output velocity buffer
-	std::unique_ptr < cl::sycl::buffer<cl::sycl::float2, 1>> velocity_buffer;
+	cl::sycl::buffer<cl::sycl::float2, 1> velocity_buffer;
 
 	// 0 - fluid, 1 - boundary
 	cl::sycl::buffer<bool, 1>  type_buffer;
