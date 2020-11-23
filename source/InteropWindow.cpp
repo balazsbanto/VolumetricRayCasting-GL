@@ -116,6 +116,9 @@ bool InteropWindow::lookForDeviceType(cl_bitfield devtype)
     std::vector<cl::Platform> plats;
     cl::Platform::get(&plats);
 
+    qDebug("InteropWindow: Possible platforms are:");
+    for (auto& platform : plats) { qDebug("InteropWindow:\t%s", platform.getInfo<CL_PLATFORM_VENDOR>(&CL_err).c_str()); checkCLerror(); }
+
 
     if(m_platform_id == std::numeric_limits<std::size_t>::max())
     {

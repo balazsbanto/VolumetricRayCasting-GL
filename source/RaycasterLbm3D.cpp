@@ -82,7 +82,7 @@ const auto colorFunc = [](cl::sycl::float3 inVelocity, bool isBoundary) {
 		color = { 0.f, 0.f, 0.f, 1.f };
 	}
 	else {
-		auto velocityMangitude = cl::sycl::length(inVelocity) * 20;
+		auto velocityMangitude = cl::sycl::length(inVelocity) * 4000;
 
 		int i = 0;
 		float w;
@@ -453,6 +453,12 @@ struct raymarch {
 				//}
 #endif
 				rayWasInside = true;
+
+				//if (isOnTheEdge(extent, location)) {
+				//	finalColor = float4{ 1.0f, 1.0f, 1.0f, 1.0f };
+				//	rayWentOutside = true;
+				//}
+
 			}
 			else {
 				if (rayWasInside)
@@ -543,7 +549,7 @@ void RaycasterLbm3D::updateSceneImpl() {
 #else
 void RaycasterLbm3D::updateSceneImpl() {
 
-	const float aspectRatio = screenSize.aspectRatio();
+ 	const float aspectRatio = screenSize.aspectRatio();
 
 	compute_queue.submit([&](cl::sycl::handler& cgh)
 	{
@@ -625,7 +631,7 @@ RaycasterLbm3D::RaycasterLbm3D(std::size_t plat,
 void RaycasterLbm3D::resetScene() {
 	
 	using namespace cl::sycl;
-	int dim = 12;
+	int dim = 20;
 	meshDim = int3{ dim, dim, dim };
 	//meshDim = int3{ screenSize.width, screenSize.width, screenSize.width };
 	stepSize = (extent[0][1] - extent[0][0])  /  (meshDim.get_value(0) * cl::sycl::sqrt(3.f));
@@ -721,7 +727,7 @@ void RaycasterLbm3D::setInput() {
 	// Increase the speed by input speed
 	//velocity_out[pos] += dragVelocity;
 
-	float3 newVel = velocity_out[pos] + float3{ 1.f, 0.f, 0.f };
+	float3 newVel = velocity_out[pos] + float3{ 0.1f, 0.1f, 0.f };
 
 	// Calculate new distribution based on input spee
 	const std::array<float3, 19> h_dir{ float3{0, 0, 0}, float3{1, 0, 0}, float3{-1, 0, 0}, float3{0, 1, 0}, float3{0, -1, 0}, float3{0, 0, 1}, float3{0, 0, -1},float3{1, 1, 0},

@@ -64,9 +64,9 @@ int main(int argc, char *argv[])
     RaycasterLbm3D raycaster(plat_id, dev_id, dev_type);
     //RaycasterLatticeBoltzmann2D raycaster(plat_id, dev_id, dev_type);
     //LatticeBoltzmann2D raycaster(plat_id, dev_id, dev_type);
-
     //SphericalHarmonicsRaycaster raycaster(plat_id, dev_id, dev_type);
-    raycaster.setGeometry(QRect(0, 0, 128, 128));
+
+    raycaster.setGeometry(QRect(0, 0, 256, 256));
     raycaster.setVisibility(QWindow::Windowed);
     //raycaster.setVisibility(QWindow::Maximized);
 

@@ -13,6 +13,25 @@ const auto isInside = [](const std::array<std::array<float, 2>, 3 >& extent, con
 
 };
 
+const auto isOnTheEdge = [](const std::array<std::array<float, 2>, 3 >& extent, const float3& location) {
+
+	float EPSILON = 0.02f;
+	int diffXp = cl::sycl::fabs(extent[0][0] - location.get_value(X)) < EPSILON;
+	int diffXn = cl::sycl::fabs(extent[0][1] - location.get_value(X)) < EPSILON;
+
+	int diffYp = cl::sycl::fabs(extent[1][0] - location.get_value(Y)) < EPSILON;
+	int diffYn = cl::sycl::fabs(extent[1][1] - location.get_value(Y)) < EPSILON;
+	
+	int diffZp = cl::sycl::fabs(extent[2][0] - location.get_value(Z)) < EPSILON;
+	int diffZn = cl::sycl::fabs(extent[2][1] - location.get_value(Z)) < EPSILON;
+	int sum = diffXp + diffXn + diffYp + diffYn + diffZp + diffZn;
+
+
+
+	return sum  == 2;
+};
+
+ 
 struct SphereIntersection {
 	bool isIntersected = false;
 	float t0 = -1E+36f;
