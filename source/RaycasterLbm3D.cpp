@@ -82,7 +82,7 @@ const auto colorFunc = [](cl::sycl::float3 inVelocity, bool isBoundary) {
 		color = { 0.f, 0.f, 0.f, 1.f };
 	}
 	else {
-		auto velocityMangitude = cl::sycl::length(inVelocity) * 4000;
+		auto velocityMangitude = cl::sycl::length(inVelocity) * 8000;
 
 		int i = 0;
 		float w;
@@ -570,7 +570,7 @@ void RaycasterLbm3D::updateSceneImpl() {
 		auto of15to18 = f15to18_buffers[Buffer::Back].get_access<access::mode::discard_write>(cgh);
 
 		auto velocity_out =	velocity_buffer.get_access<access::mode::discard_write>(cgh);
-		
+		 
 
 		auto new_lattice = latticeImages[Buffer::Back]->get_access<float4, access::mode::discard_write>(cgh);
 
@@ -631,7 +631,7 @@ RaycasterLbm3D::RaycasterLbm3D(std::size_t plat,
 void RaycasterLbm3D::resetScene() {
 	
 	using namespace cl::sycl;
-	int dim = 20;
+	int dim = 28;
 	meshDim = int3{ dim, dim, dim };
 	//meshDim = int3{ screenSize.width, screenSize.width, screenSize.width };
 	stepSize = (extent[0][1] - extent[0][0])  /  (meshDim.get_value(0) * cl::sycl::sqrt(3.f));
