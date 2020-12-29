@@ -21,6 +21,7 @@
 #include <RaycasterLatticeBoltzmann2D.hpp>
 #include <RaycasterLbm3D.hpp>
 #include <SphericalHarmonicsRaycaster.hpp>
+#include <CubeRaycaster.hpp>
 
 int main(int argc, char *argv[])
 {
@@ -61,10 +62,11 @@ int main(int argc, char *argv[])
 
     dev_type = CL_DEVICE_TYPE_GPU;
 
-    RaycasterLbm3D raycaster(plat_id, dev_id, dev_type);
+    //RaycasterLbm3D raycaster(plat_id, dev_id, dev_type);
     //RaycasterLatticeBoltzmann2D raycaster(plat_id, dev_id, dev_type);
     //LatticeBoltzmann2D raycaster(plat_id, dev_id, dev_type);
     //SphericalHarmonicsRaycaster raycaster(plat_id, dev_id, dev_type);
+    CubeRaycaster raycaster(plat_id, dev_id, dev_type);
 
     raycaster.setGeometry(QRect(0, 0, 300, 300));
     raycaster.setVisibility(QWindow::Windowed);
