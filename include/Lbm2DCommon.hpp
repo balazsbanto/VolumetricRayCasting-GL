@@ -41,7 +41,7 @@ const auto colorFunc = [](cl::sycl::float2 inVelocity, bool isBoundary) {
 		color = { 0.f, 0.f, 0.f, 1.f };
 	}
 	else {
-		auto velocityMangitude = cl::sycl::length(inVelocity) * 20;
+		auto velocityMangitude = cl::sycl::length(inVelocity) * 20000;
 
 		int i = 0;
 		float w;
