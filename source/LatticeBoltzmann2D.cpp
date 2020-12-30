@@ -148,7 +148,7 @@ void LatticeBoltzmann2D::setInput() {
 	// Increase the speed by input speed
 	//velocity_out[pos] += dragVelocity;
 
-	float2 newVel = velocity_out[pos] + float2{ 1.f, 1.f };
+	float2 newVel = velocity_out[pos] + float2{ 0.01f, 0.01f };
 
 	// Calculate new distribution based on input speed
 
